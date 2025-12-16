@@ -1,0 +1,230 @@
+
+import React, { useState } from 'react';
+import { Teacher } from '../types';
+
+interface TeacherManagerProps {
+  teachers: Teacher[];
+  onAddTeacher: (teacher: Teacher) => void;
+  onRemoveTeacher: (id: string) => void;
+}
+
+export const TeacherManager: React.FC<TeacherManagerProps> = ({ 
+  teachers, 
+  onAddTeacher, 
+  onRemoveTeacher 
+}) => {
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  
+  // Update state to include email and password
+  const [formData, setFormData] = useState({ 
+      name: '', 
+      nip: '', 
+      email: '', 
+      password: '', 
+      photoUrl: '' 
+  });
+
+  const resetForm = () => {
+    setFormData({ name: '', nip: '', email: '', password: '', photoUrl: '' });
+    setEditingId(null);
+  };
+
+  const handleAddNewClick = () => {
+      resetForm();
+      setIsFormOpen(true);
+  };
+
+  const handleEditClick = (teacher: Teacher) => {
+      setFormData({ 
+          name: teacher.name, 
+          nip: teacher.nip,
+          email: teacher.email || '',
+          password: teacher.password || '',
+          photoUrl: teacher.photoUrl || '' 
+      });
+      setEditingId(teacher.id);
+      setIsFormOpen(true);
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, photoUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSave = () => {
+    if (!formData.name) return;
+
+    const newTeacher: Teacher = {
+      id: editingId || Date.now().toString(),
+      name: formData.name,
+      nip: formData.nip || '-',
+      email: formData.email,
+      password: formData.password,
+      photoUrl: formData.photoUrl
+    };
+
+    onAddTeacher(newTeacher);
+    resetForm();
+    setIsFormOpen(false);
+  };
+
+  return (
+    <div className="relative min-h-full">
+      {/* Header Info */}
+      <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4 flex justify-between items-center">
+        <div>
+           <h3 className="font-bold text-blue-900">Data Guru</h3>
+           <p className="text-xs text-blue-600">Total: {teachers.length} Guru</p>
+        </div>
+      </div>
+
+      {/* Teacher List */}
+      <div className="space-y-4">
+        {teachers.map((teacher) => (
+          <div key={teacher.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative group">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden shrink-0 border border-gray-100 bg-orange-100">
+                {teacher.photoUrl ? (
+                    <img src={teacher.photoUrl} alt={teacher.name} className="w-full h-full object-cover" />
+                ) : (
+                    <span className="text-orange-600 font-bold text-lg">{teacher.name.substring(0, 2).toUpperCase()}</span>
+                )}
+              </div>
+              <div className="overflow-hidden">
+                <h4 className="font-bold text-gray-800 text-lg truncate">{teacher.name}</h4>
+                <p className="text-xs text-gray-500">NIP: {teacher.nip}</p>
+                {teacher.email && (
+                    <p className="text-xs text-blue-500 flex items-center gap-1 mt-0.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                             <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                             <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                        </svg>
+                        {teacher.email}
+                    </p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 flex gap-2 border-t pt-3 border-gray-50">
+                <button 
+                    onClick={() => handleEditClick(teacher)}
+                    className="flex-1 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-1"
+                >
+                        Edit
+                </button>
+                <button 
+                    onClick={() => onRemoveTeacher(teacher.id)}
+                    className="flex-1 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-1"
+                >
+                    Remove
+                </button>
+            </div>
+          </div>
+        ))}
+
+        {teachers.length === 0 && (
+          <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-300">
+            <p className="text-gray-400 text-sm">Belum ada data guru.</p>
+          </div>
+        )}
+      </div>
+
+      {/* FAB */}
+      <button 
+        onClick={handleAddNewClick}
+        className="fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 active:scale-90 transition-all flex items-center justify-center z-40"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+      </button>
+
+      {/* Modal */}
+      {isFormOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-0 sm:p-4">
+            <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl p-6 animate-fade-in-up max-h-[90vh] overflow-y-auto no-scrollbar">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-gray-800">{editingId ? 'Edit Guru' : 'Tambah Guru'}</h3>
+                    <button onClick={() => setIsFormOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+                </div>
+
+                <div className="space-y-4">
+                    {/* Photo Upload */}
+                    <div className="flex flex-col items-center gap-3 mb-6">
+                         <div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden relative group">
+                            {formData.photoUrl ? (
+                                <img src={formData.photoUrl} alt="Preview" className="w-full h-full object-cover" />
+                            ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            )}
+                            <label className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 flex items-center justify-center transition-all cursor-pointer">
+                                <span className="text-white text-xs font-bold opacity-0 group-hover:opacity-100">Ubah Foto</span>
+                                <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+                            </label>
+                         </div>
+                         <p className="text-xs text-gray-500">Klik foto untuk mengganti</p>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Nama Lengkap</label>
+                        <input 
+                            value={formData.name}
+                            onChange={(e) => setFormData({...formData, name: e.target.value})}
+                            placeholder="Contoh: Budi Santoso, S.Pd"
+                            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                            autoFocus
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">NIP (Opsional)</label>
+                        <input 
+                            value={formData.nip}
+                            onChange={(e) => setFormData({...formData, nip: e.target.value})}
+                            placeholder="Nomor Induk Pegawai"
+                            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
+                        <input 
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => setFormData({...formData, email: e.target.value})}
+                            placeholder="email@sekolah.com"
+                            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Password</label>
+                        <input 
+                            type="text"
+                            value={formData.password}
+                            onChange={(e) => setFormData({...formData, password: e.target.value})}
+                            placeholder="Password untuk login"
+                            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                    </div>
+                </div>
+
+                <button 
+                    onClick={handleSave}
+                    disabled={!formData.name}
+                    className="w-full mt-8 bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                >
+                    {editingId ? 'Simpan Perubahan' : 'Tambah Guru'}
+                </button>
+            </div>
+        </div>
+      )}
+    </div>
+  );
+};

@@ -1,0 +1,7 @@
+{
+  "name": "GeoAttend AI",
+  "description": "Smart attendance system with Geofencing and AI-powered location verification.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
