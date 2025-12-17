@@ -22,6 +22,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [importProgress, setImportProgress] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({ 
@@ -36,6 +37,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
     setFormData({ name: '', nip: '', email: '', password: '', photoUrl: '' });
     setEditingId(null);
     setIsSubmitting(false);
+    setImportProgress('');
   };
 
   const handleAddNewClick = () => {
@@ -77,6 +79,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
     let finalId = editingId;
 
     if (!editingId && isFirebaseConfigured) {
+        // Use a secondary app to create user without logging out the admin
         const secondaryAppName = "SecondaryApp-" + Date.now();
         const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
         const secondaryAuth = getAuth(secondaryApp);
@@ -84,18 +87,19 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
         try {
             const userCredential = await createUserWithEmailAndPassword(secondaryAuth, formData.email, formData.password);
             finalId = userCredential.user.uid; 
-            await signOut(secondaryAuth);
+            await signOut(secondaryAuth); // Sign out from secondary immediately
         } catch (error: any) {
             console.error("Auth Creation Error:", error);
             let msg = "Gagal membuat akun.";
             if (error.code === 'auth/email-already-in-use') msg = "Email sudah terdaftar.";
+            else if (error.code === 'auth/weak-password') msg = "Password terlalu lemah (min 6 karakter).";
             
             showToast(`Error: ${msg}`, "error");
-            await deleteApp(secondaryApp);
+            await deleteApp(secondaryApp); // Clean up
             setIsSubmitting(false);
             return;
         } finally {
-            await deleteApp(secondaryApp);
+            await deleteApp(secondaryApp); // Clean up in success case too
         }
     } else if (!editingId) {
         finalId = Date.now().toString();
@@ -129,45 +133,98 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
       XLSX.writeFile(wb, "Template_Data_Guru.xlsx");
   };
 
-  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
 
       const reader = new FileReader();
-      reader.onload = (evt) => {
+      
+      reader.onload = async (evt) => {
           const bstr = evt.target?.result;
           const wb = XLSX.read(bstr, { type: 'binary' });
           const wsname = wb.SheetNames[0];
           const ws = wb.Sheets[wsname];
           const data = XLSX.utils.sheet_to_json(ws);
 
+          if (data.length === 0) {
+              showToast("File Excel kosong.", "error");
+              return;
+          }
+
+          setImportProgress(`Memproses ${data.length} data... Mohon tunggu.`);
+          setIsSubmitting(true);
+
           let successCount = 0;
-          
-          data.forEach((row: any) => {
-              const name = row["Nama Lengkap"];
-              const nip = row["NIP"] ? String(row["NIP"]) : '-';
-              const email = row["Email"];
-              const password = row["Password"] ? String(row["Password"]) : '123456';
+          let failCount = 0;
+          let secondaryApp: any = null;
+          let secondaryAuth: any = null;
 
-              if (name && email) {
-                  // In offline/simple import, we just generate an ID.
-                  // For real auth bulk import, it's complex client-side.
-                  // Here we add to DB list.
-                  const newTeacher: Teacher = {
-                      id: `imported_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                      name,
-                      nip,
-                      email,
-                      password
-                  };
-                  onAddTeacher(newTeacher);
-                  successCount++;
+          // Initialize secondary app once for the loop if online
+          if (isFirebaseConfigured) {
+               const secondaryAppName = "SecondaryApp-Import-" + Date.now();
+               secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+               secondaryAuth = getAuth(secondaryApp);
+          }
+
+          try {
+            for (const row of data as any[]) {
+                const name = row["Nama Lengkap"];
+                const nip = row["NIP"] ? String(row["NIP"]) : '-';
+                const email = row["Email"];
+                const password = row["Password"] ? String(row["Password"]) : '123456';
+
+                if (name && email && password) {
+                    try {
+                        let finalId = `imported_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                        
+                        // Create User in Firebase Auth if online
+                        if (isFirebaseConfigured && secondaryAuth) {
+                            try {
+                                const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+                                finalId = userCredential.user.uid;
+                                // We don't need to sign out inside the loop, just delete app at the end
+                            } catch (authError: any) {
+                                console.error(`Failed to create auth for ${email}:`, authError.message);
+                                failCount++;
+                                continue; // Skip saving to DB if Auth fails
+                            }
+                        }
+
+                        // Add to DB via Parent Callback
+                        const newTeacher: Teacher = {
+                            id: finalId,
+                            name,
+                            nip,
+                            email,
+                            password
+                        };
+                        onAddTeacher(newTeacher);
+                        successCount++;
+                    } catch (err) {
+                        console.error(err);
+                        failCount++;
+                    }
+                } else {
+                    failCount++;
+                }
+            }
+          } finally {
+              // Clean up secondary app
+              if (secondaryApp) {
+                  await deleteApp(secondaryApp);
               }
-          });
-
-          showToast(`Berhasil mengimport ${successCount} data guru.`, "success");
-          if (fileInputRef.current) fileInputRef.current.value = ""; // Reset input
+              setIsSubmitting(false);
+              setImportProgress('');
+              if (fileInputRef.current) fileInputRef.current.value = ""; 
+              
+              if (successCount > 0) {
+                  showToast(`Import Selesai. Sukses: ${successCount}, Gagal: ${failCount}`, "success");
+              } else {
+                  showToast(`Import Gagal. Pastikan format Excel benar dan email belum terdaftar.`, "error");
+              }
+          }
       };
+      
       reader.readAsBinaryString(file);
   };
 
@@ -178,26 +235,29 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
         <div>
            <h3 className="font-bold text-blue-900">Data Guru</h3>
            <p className="text-xs text-blue-600">Total: {teachers.length} Guru</p>
+           {importProgress && <p className="text-xs font-bold text-orange-600 animate-pulse mt-1">{importProgress}</p>}
         </div>
         
         {/* Import/Export Buttons */}
         <div className="flex gap-2">
             <button 
                 onClick={handleDownloadTemplate}
-                className="flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold hover:bg-green-200 transition-colors"
+                disabled={isSubmitting}
+                className="flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold hover:bg-green-200 transition-colors disabled:opacity-50"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                 Template
             </button>
-            <label className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-200 transition-colors cursor-pointer">
+            <label className={`flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-200 transition-colors cursor-pointer ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                Import Excel
+                {isSubmitting ? 'Importing...' : 'Import Excel'}
                 <input 
                     type="file" 
                     accept=".xlsx, .xls" 
                     className="hidden" 
                     ref={fileInputRef}
                     onChange={handleImportExcel}
+                    disabled={isSubmitting}
                 />
             </label>
         </div>
@@ -257,7 +317,8 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
       {/* FAB */}
       <button 
         onClick={handleAddNewClick}
-        className="fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 active:scale-90 transition-all flex items-center justify-center z-40"
+        disabled={isSubmitting}
+        className="fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 active:scale-90 transition-all flex items-center justify-center z-40 disabled:opacity-50"
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

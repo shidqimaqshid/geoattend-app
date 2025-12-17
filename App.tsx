@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Coordinates, Office, AttendanceRecord, Student, Teacher, Subject, ClassSession, User, ToastMessage } from './types';
+import { Coordinates, Office, AttendanceRecord, Student, Teacher, Subject, ClassSession, User, ToastMessage, ActiveUserSession } from './types';
 import { getBrowserLocation, calculateDistance } from './utils/geo';
 import { getIndonesianDay, isTimeInRange, getFormattedDate } from './utils/dateUtils';
 import { OfficeManager } from './components/OfficeManager';
@@ -16,7 +16,7 @@ import { EditProfileModal } from './components/EditProfileModal';
 import { TeacherHistory } from './components/TeacherHistory';
 import { ToastContainer } from './components/Toast';
 import { db, isFirebaseConfigured } from './services/firebase';
-import { ref, onValue, set, remove, update } from 'firebase/database';
+import { ref, onValue, set, remove, update, onDisconnect } from 'firebase/database';
 
 // Updated radius to 100m for better real-world usage in buildings
 const MAX_DISTANCE_METERS = 100; 
@@ -53,6 +53,7 @@ const App: React.FC = () => {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [sessions, setSessions] = useState<ClassSession[]>([]); 
+  const [activeUsers, setActiveUsers] = useState<ActiveUserSession[]>([]); // NEW: Active Users
   
   // --- UI STATE ---
   const [activeTab, setActiveTab] = useState<'checkin' | 'data_menu' | 'students' | 'subjects' | 'teachers' | 'admin' | 'reports' | 'teacher_history'>('checkin');
@@ -108,6 +109,65 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // --- PRESENCE SYSTEM (Monitoring Online Users) ---
+  useEffect(() => {
+    if (currentUser && db && !isOfflineMode) {
+      const presenceRef = ref(db, `active_users/${currentUser.id}`);
+      
+      const setupPresence = async () => {
+        try {
+          // Get IP (Basic info)
+          let ip = 'Unknown';
+          try {
+            const res = await fetch('https://api.ipify.org?format=json');
+            const data = await res.json();
+            ip = data.ip;
+          } catch(e) {
+             console.warn("Could not fetch IP", e);
+          }
+
+          const sessionData = {
+            userId: currentUser.id,
+            name: currentUser.name,
+            role: currentUser.role,
+            ip: ip,
+            userAgent: navigator.userAgent,
+            lastSeen: Date.now(),
+            photoUrl: currentUser.photoUrl || '',
+            location: currentLocation // Pass null explicitly if null, do not use || undefined
+          };
+
+          // Update data - clean any accidental undefineds
+          const cleanData = JSON.parse(JSON.stringify(sessionData));
+          await update(presenceRef, cleanData);
+
+          // Set remove on disconnect
+          onDisconnect(presenceRef).remove();
+
+        } catch (e) {
+          console.error("Presence Error:", e);
+        }
+      };
+
+      setupPresence();
+
+      // Update timestamp/location every minute
+      const interval = setInterval(() => {
+         const updates = { 
+            lastSeen: Date.now(), 
+            location: currentLocation 
+         };
+         // Clean undefineds before sending to firebase
+         update(presenceRef, JSON.parse(JSON.stringify(updates)));
+      }, 60000);
+
+      return () => {
+        clearInterval(interval);
+        remove(presenceRef); // Cleanup on logout/unmount
+      };
+    }
+  }, [currentUser, isOfflineMode, currentLocation]); // Re-run if location changes to update DB
+
   // --- DATA LOADING ---
   useEffect(() => {
     let unsubs: (() => void)[] = [];
@@ -138,6 +198,8 @@ const App: React.FC = () => {
             unsubs.push(subscribe('teachers', setTeachers));
             unsubs.push(subscribe('subjects', setSubjects));
             unsubs.push(subscribe('sessions', setSessions));
+            // Listen to active users
+            unsubs.push(subscribe('active_users', setActiveUsers));
 
         } catch (err: any) {
             handleError(err);
@@ -359,7 +421,8 @@ const App: React.FC = () => {
                 sessions={sessions}
                 user={currentUser}
                 teachers={teachers} 
-                students={students} 
+                students={students}
+                activeUsers={activeUsers} // Pass active users to dashboard
                 onSelectSubject={setSelectedSubject}
                 onPermissionRequest={handleTeacherPermission}
                 showToast={showToast}
@@ -443,6 +506,9 @@ const App: React.FC = () => {
         isDarkMode={isDarkMode}
         toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
         onLogout={() => {
+            if (currentUser && db && !isOfflineMode) {
+               remove(ref(db, `active_users/${currentUser.id}`));
+            }
             setCurrentUser(null);
             setSelectedSubject(null);
             localStorage.removeItem('geoattend_user');

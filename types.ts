@@ -103,3 +103,15 @@ export interface ToastMessage {
   type: 'success' | 'error' | 'info';
   message: string;
 }
+
+// NEW: Active User for Monitoring
+export interface ActiveUserSession {
+  userId: string;
+  name: string;
+  role: 'admin' | 'teacher';
+  ip: string;
+  userAgent: string;
+  lastSeen: number;
+  location?: Coordinates;
+  photoUrl?: string;
+}

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Subject, ClassSession, User, Teacher, Student } from '../types';
+import { Subject, ClassSession, User, Teacher, Student, ActiveUserSession } from '../types';
 import { getCurrentTime, isTimeInRange, isTimePast, isUpcomingOrActive, getFormattedDate, getIndonesianDay } from '../utils/dateUtils';
 
 interface ActiveSessionListProps {
@@ -10,9 +10,10 @@ interface ActiveSessionListProps {
   user: User;
   teachers?: Teacher[]; // For admin stats & substitutes
   students?: Student[]; // For admin stats
+  activeUsers?: ActiveUserSession[]; // NEW: For admin monitoring
   onSelectSubject: (subject: Subject) => void;
-  onPermissionRequest?: (subject: Subject, session: ClassSession) => void; // New prop
-  showToast?: (msg: string, type: 'success' | 'error' | 'info') => void; // NEW
+  onPermissionRequest?: (subject: Subject, session: ClassSession) => void; 
+  showToast?: (msg: string, type: 'success' | 'error' | 'info') => void; 
 }
 
 export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({ 
@@ -23,6 +24,7 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
     onSelectSubject, 
     teachers = [], 
     students = [],
+    activeUsers = [],
     onPermissionRequest,
     showToast = (msg, type) => alert(msg) // Fallback
 }) => {
@@ -38,7 +40,7 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
   
   // --- NOTIFICATION LOGIC ---
   useEffect(() => {
-    if (user.role === 'teacher' && Notification.permission === 'granted') {
+    if (user.role === 'teacher' && Notification.permission !== 'denied') {
         subjects.forEach(subject => {
             const [startStr] = subject.time.split('-');
             const [startHour, startMin] = startStr.split(':').map(Number);
@@ -102,15 +104,60 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                               <span>Pagerungan Kecil, Sapeken, Sumenep</span>
                           </div>
-                          <div className="flex items-center justify-center sm:justify-start gap-2">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                              <span>admin@albarkah.com</span>
-                          </div>
-                          <div className="flex items-center justify-center sm:justify-start gap-2">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                              <span>+62 812-3456-7890</span>
-                          </div>
                       </div>
+                  </div>
+              </div>
+
+              {/* ONLINE USERS MONITOR */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                  <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-700/30">
+                      <h3 className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                          <span className="relative flex h-3 w-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                          </span>
+                          Monitoring Online ({activeUsers.length})
+                      </h3>
+                  </div>
+                  <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-64 overflow-y-auto">
+                      {activeUsers.map(u => (
+                          <div key={u.userId} className="p-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                              <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 overflow-hidden">
+                                      {u.photoUrl ? (
+                                          <img src={u.photoUrl} alt={u.name} className="w-full h-full object-cover"/>
+                                      ) : (
+                                          <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-500">{u.name.charAt(0)}</div>
+                                      )}
+                                  </div>
+                                  <div>
+                                      <p className="text-sm font-bold text-gray-800 dark:text-white leading-none">{u.name}</p>
+                                      <p className="text-[10px] text-gray-500 dark:text-gray-400">{u.role === 'admin' ? 'Administrator' : 'Guru'} • {u.ip}</p>
+                                  </div>
+                              </div>
+                              <div className="text-right">
+                                  {u.location ? (
+                                      <a 
+                                        href={`https://www.google.com/maps?q=${u.location.latitude},${u.location.longitude}`} 
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-[10px] text-blue-600 hover:underline flex items-center gap-1 justify-end"
+                                      >
+                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                              <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                                          </svg>
+                                          Lokasi
+                                      </a>
+                                  ) : (
+                                      <span className="text-[10px] text-gray-400">No GPS</span>
+                                  )}
+                                  <p className="text-[10px] text-green-600 font-mono">Online</p>
+                              </div>
+                          </div>
+                      ))}
+                      {activeUsers.length === 0 && (
+                          <p className="text-center text-xs text-gray-400 py-4">Tidak ada user lain yang online.</p>
+                      )}
                   </div>
               </div>
 
