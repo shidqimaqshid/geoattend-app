@@ -74,13 +74,32 @@ export interface ClassSession {
   teacherId: string;
   date: string; // YYYY-MM-DD
   startTime: number; // Timestamp check-in guru
-  teacherStatus: 'PRESENT' | 'ABSENT';
+  teacherStatus: 'PRESENT' | 'ABSENT' | 'PERMISSION' | 'SICK'; // Added PERMISSION/SICK
+  
+  // Permission Fields
+  permissionProofUrl?: string; // Base64 or URL
+  permissionType?: 'image' | 'pdf';
+  permissionNotes?: string;
+  substituteTeacherId?: string;
+  substituteTeacherName?: string;
+
+  attendanceStatus?: 'ON_TIME' | 'LATE'; 
+  lateMinutes?: number; 
+  attendancePhotoUrl?: string; // Selfie Evidence
   teacherCoordinates?: Coordinates;
   studentAttendance: Record<string, 'PRESENT' | 'SICK' | 'PERMISSION' | 'ALPHA'>; // studentId -> status
+  status?: 'ACTIVE' | 'COMPLETED'; 
 }
 
 export interface LocationState {
   coords: Coordinates | null;
   error: string | null;
   loading: boolean;
+}
+
+// UI Types
+export interface ToastMessage {
+  id: string;
+  type: 'success' | 'error' | 'info';
+  message: string;
 }

@@ -1,21 +1,21 @@
 
 {
-  "name": "GeoAttend AI",
-  "short_name": "GeoAttend",
-  "description": "Aplikasi Absensi Pintar dengan Geofencing dan AI",
+  "name": "Sistem Absensi Ponpes Al-Barkah",
+  "short_name": "SiAbsen Al-Barkah",
+  "description": "Sistem Absensi Digital Pondok Pesantren Al-Barkah, Pagerungan Kecil, Sapeken, Sumenep.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#2563eb",
+  "theme_color": "#15803d",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3652/3652191.png",
+      "src": "/logo.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3652/3652191.png",
+      "src": "/logo.png",
       "type": "image/png",
       "sizes": "512x512"
     }

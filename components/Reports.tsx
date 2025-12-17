@@ -1,6 +1,9 @@
 
 import React, { useState } from 'react';
 import { Teacher, Student, ClassSession, Office } from '../types';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface ReportsProps {
   teachers: Teacher[];
@@ -12,209 +15,280 @@ interface ReportsProps {
 export const Reports: React.FC<ReportsProps> = ({ teachers, students, sessions, classes }) => {
   const [activeTab, setActiveTab] = useState<'TEACHER' | 'STUDENT'>('TEACHER');
   const [selectedClassId, setSelectedClassId] = useState<string>('ALL');
+  
+  // Date Filters (Default to First & Last day of current month)
+  const date = new Date();
+  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0];
+  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0];
+  
+  const [startDate, setStartDate] = useState<string>(firstDay);
+  const [endDate, setEndDate] = useState<string>(lastDay);
+
+  // Filter Sessions based on Date Range
+  const filteredSessions = sessions.filter(session => {
+      return session.date >= startDate && session.date <= endDate;
+  });
 
   // --- TEACHER REPORT LOGIC ---
-  const getTeacherStats = (teacherId: string) => {
-    // Count how many sessions this teacher has conducted (PRESENT)
-    const totalSessions = sessions.filter(
-        s => s.teacherId === teacherId && s.teacherStatus === 'PRESENT'
-    ).length;
-    return totalSessions;
+  const getTeacherStats = () => {
+    return teachers.map(teacher => {
+        const teacherSessions = filteredSessions.filter(s => s.teacherId === teacher.id);
+        const totalScheduled = teacherSessions.length; // In real app, calculate from Subject schedule * days
+        const present = teacherSessions.filter(s => s.teacherStatus === 'PRESENT').length;
+        const permission = teacherSessions.filter(s => s.teacherStatus === 'PERMISSION' || s.teacherStatus === 'SICK').length;
+        const alpha = 0; // Logic for alpha requires checking schedules vs sessions
+        const percentage = totalScheduled > 0 ? Math.round((present / totalScheduled) * 100) : 0;
+
+        return {
+            id: teacher.id,
+            name: teacher.name,
+            nip: teacher.nip,
+            present,
+            permission,
+            alpha,
+            total: totalScheduled, // Using actual sessions as proxy for now
+            percentage
+        };
+    });
   };
 
   // --- STUDENT REPORT LOGIC ---
-  const getStudentStats = (studentId: string) => {
-    let present = 0;
-    let sick = 0;
-    let permission = 0;
-    let alpha = 0;
+  const getStudentStats = () => {
+      let targetStudents = students;
+      if (selectedClassId !== 'ALL') {
+          targetStudents = students.filter(s => s.classId === selectedClassId);
+      }
 
-    // Iterate through all sessions that involve the student's class
-    // Note: We check if the studentId exists in studentAttendance keys to be accurate, 
-    // or we filter sessions by student's classId if we assume all class students should be there.
-    // Here we check the record specifically.
-    
-    sessions.forEach(session => {
-        const status = session.studentAttendance?.[studentId];
-        if (status === 'PRESENT') present++;
-        else if (status === 'SICK') sick++;
-        else if (status === 'PERMISSION') permission++;
-        else if (status === 'ALPHA') alpha++;
-    });
+      return targetStudents.map(student => {
+          let present = 0, sick = 0, permission = 0, alpha = 0;
+          
+          filteredSessions.forEach(session => {
+              if (session.studentAttendance && session.studentAttendance[student.id]) {
+                  const status = session.studentAttendance[student.id];
+                  if (status === 'PRESENT') present++;
+                  else if (status === 'SICK') sick++;
+                  else if (status === 'PERMISSION') permission++;
+                  else if (status === 'ALPHA') alpha++;
+              }
+          });
+          
+          const total = present + sick + permission + alpha;
+          const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
 
-    return { present, sick, permission, alpha };
+          return {
+              id: student.id,
+              name: student.name,
+              className: student.className,
+              present,
+              sick,
+              permission,
+              alpha,
+              percentage
+          };
+      });
   };
 
-  const filteredStudents = selectedClassId === 'ALL' 
-    ? students 
-    : students.filter(s => s.classId === selectedClassId);
+  // --- EXPORT HANDLERS ---
+  const handleExportExcel = () => {
+      if (activeTab === 'TEACHER') {
+          const data = getTeacherStats().map(t => ({
+              "Nama Guru": t.name,
+              "NIP": t.nip,
+              "Hadir": t.present,
+              "Izin/Sakit": t.permission,
+              "Persentase": `${t.percentage}%`
+          }));
+          const ws = XLSX.utils.json_to_sheet(data);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, "Laporan Guru");
+          XLSX.writeFile(wb, `Laporan_Guru_${startDate}_${endDate}.xlsx`);
+      } else {
+           const data = getStudentStats().map(s => ({
+              "Nama Santri": s.name,
+              "Kelas": s.className,
+              "Hadir": s.present,
+              "Sakit": s.sick,
+              "Izin": s.permission,
+              "Alpha": s.alpha,
+              "Persentase": `${s.percentage}%`
+          }));
+          const ws = XLSX.utils.json_to_sheet(data);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, "Laporan Santri");
+          XLSX.writeFile(wb, `Laporan_Santri_${startDate}_${endDate}.xlsx`);
+      }
+  };
+
+  const handleExportPDF = () => {
+      const doc = new jsPDF();
+      doc.setFontSize(14);
+      doc.text(`Laporan Absensi ${activeTab === 'TEACHER' ? 'Guru' : 'Santri'}`, 14, 15);
+      doc.setFontSize(10);
+      doc.text(`Periode: ${startDate} s/d ${endDate}`, 14, 22);
+
+      if (activeTab === 'TEACHER') {
+          const tableData = getTeacherStats().map(t => [t.name, t.nip, t.present, t.permission, `${t.percentage}%`]);
+          autoTable(doc, {
+              head: [['Nama Guru', 'NIP', 'Hadir', 'Izin', '%']],
+              body: tableData,
+              startY: 30,
+          });
+      } else {
+          const tableData = getStudentStats().map(s => [s.name, s.className, s.present, s.sick, s.permission, s.alpha, `${s.percentage}%`]);
+           autoTable(doc, {
+              head: [['Nama Santri', 'Kelas', 'H', 'S', 'I', 'A', '%']],
+              body: tableData,
+              startY: 30,
+          });
+      }
+
+      doc.save(`Laporan_${activeTab}_${startDate}_${endDate}.pdf`);
+  };
 
   return (
-    <div className="pb-20">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Laporan Semester</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Rekapitulasi kehadiran semester ini</p>
-      </div>
+    <div className="space-y-6 pb-20 animate-fade-in">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+            <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">Laporan & Rekapitulasi</h2>
+            
+            {/* Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Dari Tanggal</label>
+                    <input 
+                        type="date" 
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm"
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Sampai Tanggal</label>
+                    <input 
+                        type="date" 
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm"
+                    />
+                </div>
+            </div>
 
-      {/* Tabs */}
-      <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-xl mb-6">
-        <button
-          onClick={() => setActiveTab('TEACHER')}
-          className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${
-            activeTab === 'TEACHER'
-              ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-white shadow-sm'
-              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
-          }`}
-        >
-          Laporan Guru
-        </button>
-        <button
-          onClick={() => setActiveTab('STUDENT')}
-          className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${
-            activeTab === 'STUDENT'
-              ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-white shadow-sm'
-              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
-          }`}
-        >
-          Laporan Santri
-        </button>
-      </div>
-
-      {/* --- TEACHER REPORT VIEW --- */}
-      {activeTab === 'TEACHER' && (
-        <div className="space-y-4">
-          <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-xl border border-blue-100 dark:border-blue-800 flex items-center justify-between">
-             <div>
-                 <h4 className="font-bold text-blue-800 dark:text-blue-200">Total Guru</h4>
-                 <p className="text-2xl font-bold text-blue-600 dark:text-blue-300">{teachers.length}</p>
-             </div>
-             <div className="text-right">
-                 <h4 className="font-bold text-blue-800 dark:text-blue-200">Total Sesi KBM</h4>
-                 <p className="text-2xl font-bold text-blue-600 dark:text-blue-300">
-                    {sessions.filter(s => s.teacherStatus === 'PRESENT').length}
-                 </p>
-             </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-            <table className="w-full text-sm text-left text-gray-600 dark:text-gray-300">
-                <thead className="text-xs text-gray-700 dark:text-gray-200 uppercase bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                        <th className="px-4 py-3">Nama Guru</th>
-                        <th className="px-4 py-3 text-center">Jml Mengajar</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                    {teachers.map(teacher => {
-                        const count = getTeacherStats(teacher.id);
-                        return (
-                            <tr key={teacher.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-xs font-bold text-blue-600 dark:text-blue-300">
-                                            {teacher.name.charAt(0)}
-                                        </div>
-                                        <div>
-                                            {teacher.name}
-                                            <div className="text-[10px] text-gray-400">{teacher.nip}</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3 text-center font-bold text-blue-600 dark:text-blue-400">
-                                    {count} Sesi
-                                </td>
-                            </tr>
-                        );
-                    })}
-                </tbody>
-            </table>
-            {teachers.length === 0 && (
-                <div className="p-4 text-center text-gray-400">Belum ada data guru.</div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* --- STUDENT REPORT VIEW --- */}
-      {activeTab === 'STUDENT' && (
-        <div className="space-y-4">
-          
-          {/* Class Filter */}
-          <div className="overflow-x-auto pb-2 no-scrollbar">
-            <div className="flex gap-2">
-                <button
-                    onClick={() => setSelectedClassId('ALL')}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border ${
-                        selectedClassId === 'ALL'
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600'
+            {/* Tabs */}
+            <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg mb-4">
+                <button 
+                    onClick={() => setActiveTab('TEACHER')}
+                    className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${
+                        activeTab === 'TEACHER' 
+                        ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-white shadow-sm' 
+                        : 'text-gray-500 dark:text-gray-400'
                     }`}
                 >
-                    Semua Kelas
+                    Laporan Guru
                 </button>
-                {classes.map(c => (
-                    <button
-                        key={c.id}
-                        onClick={() => setSelectedClassId(c.id)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border ${
-                            selectedClassId === c.id
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600'
-                        }`}
-                    >
-                        {c.name}
-                    </button>
-                ))}
+                <button 
+                    onClick={() => setActiveTab('STUDENT')}
+                    className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${
+                        activeTab === 'STUDENT' 
+                        ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-white shadow-sm' 
+                        : 'text-gray-500 dark:text-gray-400'
+                    }`}
+                >
+                    Laporan Santri
+                </button>
             </div>
-          </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-             <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left text-gray-600 dark:text-gray-300">
-                    <thead className="text-xs text-gray-700 dark:text-gray-200 uppercase bg-gray-50 dark:bg-gray-700">
+            {activeTab === 'STUDENT' && (
+                 <div className="mb-4">
+                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">Filter Kelas</label>
+                    <select 
+                        value={selectedClassId}
+                        onChange={(e) => setSelectedClassId(e.target.value)}
+                        className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm"
+                    >
+                        <option value="ALL">Semua Kelas</option>
+                        {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+                <button 
+                    onClick={handleExportExcel}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    Export Excel
+                </button>
+                <button 
+                    onClick={handleExportPDF}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                    Export PDF
+                </button>
+            </div>
+        </div>
+
+        {/* Data Table Preview */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 uppercase text-xs font-bold">
                         <tr>
-                            <th className="px-4 py-3 min-w-[150px]">Nama Santri</th>
-                            <th className="px-2 py-3 text-center text-green-600">H</th>
-                            <th className="px-2 py-3 text-center text-yellow-600">S</th>
-                            <th className="px-2 py-3 text-center text-blue-600">I</th>
-                            <th className="px-2 py-3 text-center text-red-600">A</th>
+                            {activeTab === 'TEACHER' ? (
+                                <>
+                                    <th className="px-4 py-3">Nama Guru</th>
+                                    <th className="px-4 py-3">NIP</th>
+                                    <th className="px-4 py-3 text-center">Hadir</th>
+                                    <th className="px-4 py-3 text-center">Izin</th>
+                                    <th className="px-4 py-3 text-center">%</th>
+                                </>
+                            ) : (
+                                <>
+                                    <th className="px-4 py-3">Nama Santri</th>
+                                    <th className="px-4 py-3">Kelas</th>
+                                    <th className="px-4 py-3 text-center">H</th>
+                                    <th className="px-4 py-3 text-center">S</th>
+                                    <th className="px-4 py-3 text-center">I</th>
+                                    <th className="px-4 py-3 text-center">A</th>
+                                    <th className="px-4 py-3 text-center">%</th>
+                                </>
+                            )}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                        {filteredStudents.map(student => {
-                            const stats = getStudentStats(student.id);
-                            return (
-                                <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                                        <div className="flex flex-col">
-                                            <span>{student.name}</span>
-                                            <span className="text-[10px] text-gray-400">{student.className}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-2 py-3 text-center font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20">{stats.present}</td>
-                                    <td className="px-2 py-3 text-center font-medium text-yellow-600 dark:text-yellow-400">{stats.sick}</td>
-                                    <td className="px-2 py-3 text-center font-medium text-blue-600 dark:text-blue-400">{stats.permission}</td>
-                                    <td className="px-2 py-3 text-center font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20">{stats.alpha}</td>
+                        {activeTab === 'TEACHER' ? (
+                            getTeacherStats().map(t => (
+                                <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">{t.name}</td>
+                                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{t.nip}</td>
+                                    <td className="px-4 py-3 text-center text-green-600 font-bold">{t.present}</td>
+                                    <td className="px-4 py-3 text-center text-blue-600 font-bold">{t.permission}</td>
+                                    <td className="px-4 py-3 text-center font-bold">{t.percentage}%</td>
                                 </tr>
-                            );
-                        })}
+                            ))
+                        ) : (
+                            getStudentStats().map(s => (
+                                <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">{s.name}</td>
+                                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{s.className}</td>
+                                    <td className="px-4 py-3 text-center text-green-600 font-bold">{s.present}</td>
+                                    <td className="px-4 py-3 text-center text-yellow-600 font-bold">{s.sick}</td>
+                                    <td className="px-4 py-3 text-center text-blue-600 font-bold">{s.permission}</td>
+                                    <td className="px-4 py-3 text-center text-red-600 font-bold">{s.alpha}</td>
+                                    <td className="px-4 py-3 text-center font-bold">{s.percentage}%</td>
+                                </tr>
+                            ))
+                        )}
+                        {(activeTab === 'TEACHER' ? getTeacherStats() : getStudentStats()).length === 0 && (
+                            <tr>
+                                <td colSpan={7} className="text-center py-6 text-gray-400">Tidak ada data pada periode ini.</td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
-             </div>
-             {filteredStudents.length === 0 && (
-                 <div className="p-6 text-center text-gray-400">Tidak ada data santri untuk kelas ini.</div>
-             )}
-          </div>
-          
-          <div className="flex justify-center gap-4 text-[10px] text-gray-400 mt-2">
-            <span>H: Hadir</span>
-            <span>S: Sakit</span>
-            <span>I: Izin</span>
-            <span>A: Alpha</span>
-          </div>
-
+            </div>
         </div>
-      )}
     </div>
   );
 };

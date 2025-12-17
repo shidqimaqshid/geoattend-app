@@ -1,22 +1,29 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Teacher } from '../types';
+import { initializeApp, deleteApp } from "firebase/app";
+import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import { firebaseConfig, isFirebaseConfigured } from "../services/firebase";
+import * as XLSX from 'xlsx';
 
 interface TeacherManagerProps {
   teachers: Teacher[];
   onAddTeacher: (teacher: Teacher) => void;
   onRemoveTeacher: (id: string) => void;
+  showToast?: (msg: string, type: 'success' | 'error' | 'info') => void;
 }
 
 export const TeacherManager: React.FC<TeacherManagerProps> = ({ 
   teachers, 
   onAddTeacher, 
-  onRemoveTeacher 
+  onRemoveTeacher,
+  showToast = (msg, type) => alert(msg) 
 }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Update state to include email and password
   const [formData, setFormData] = useState({ 
       name: '', 
       nip: '', 
@@ -28,6 +35,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
   const resetForm = () => {
     setFormData({ name: '', nip: '', email: '', password: '', photoUrl: '' });
     setEditingId(null);
+    setIsSubmitting(false);
   };
 
   const handleAddNewClick = () => {
@@ -40,7 +48,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
           name: teacher.name, 
           nip: teacher.nip,
           email: teacher.email || '',
-          password: teacher.password || '',
+          password: teacher.password || '', 
           photoUrl: teacher.photoUrl || '' 
       });
       setEditingId(teacher.id);
@@ -58,11 +66,43 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name) return;
+    if (!editingId && (!formData.email || !formData.password)) {
+        showToast("Email dan Password wajib diisi untuk guru baru.", "error");
+        return;
+    }
+
+    setIsSubmitting(true);
+    let finalId = editingId;
+
+    if (!editingId && isFirebaseConfigured) {
+        const secondaryAppName = "SecondaryApp-" + Date.now();
+        const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+        const secondaryAuth = getAuth(secondaryApp);
+
+        try {
+            const userCredential = await createUserWithEmailAndPassword(secondaryAuth, formData.email, formData.password);
+            finalId = userCredential.user.uid; 
+            await signOut(secondaryAuth);
+        } catch (error: any) {
+            console.error("Auth Creation Error:", error);
+            let msg = "Gagal membuat akun.";
+            if (error.code === 'auth/email-already-in-use') msg = "Email sudah terdaftar.";
+            
+            showToast(`Error: ${msg}`, "error");
+            await deleteApp(secondaryApp);
+            setIsSubmitting(false);
+            return;
+        } finally {
+            await deleteApp(secondaryApp);
+        }
+    } else if (!editingId) {
+        finalId = Date.now().toString();
+    }
 
     const newTeacher: Teacher = {
-      id: editingId || Date.now().toString(),
+      id: finalId!,
       name: formData.name,
       nip: formData.nip || '-',
       email: formData.email,
@@ -73,15 +113,93 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
     onAddTeacher(newTeacher);
     resetForm();
     setIsFormOpen(false);
+    showToast(editingId ? "Data guru diperbarui" : "Guru baru berhasil ditambahkan", "success");
+  };
+
+  // --- EXCEL HANDLERS ---
+
+  const handleDownloadTemplate = () => {
+      const templateData = [
+          { "Nama Lengkap": "Budi Santoso", "NIP": "19800101", "Email": "budi@guru.com", "Password": "password123" },
+          { "Nama Lengkap": "Siti Aminah", "NIP": "19850505", "Email": "siti@guru.com", "Password": "password123" }
+      ];
+      const ws = XLSX.utils.json_to_sheet(templateData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Template Guru");
+      XLSX.writeFile(wb, "Template_Data_Guru.xlsx");
+  };
+
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+          const bstr = evt.target?.result;
+          const wb = XLSX.read(bstr, { type: 'binary' });
+          const wsname = wb.SheetNames[0];
+          const ws = wb.Sheets[wsname];
+          const data = XLSX.utils.sheet_to_json(ws);
+
+          let successCount = 0;
+          
+          data.forEach((row: any) => {
+              const name = row["Nama Lengkap"];
+              const nip = row["NIP"] ? String(row["NIP"]) : '-';
+              const email = row["Email"];
+              const password = row["Password"] ? String(row["Password"]) : '123456';
+
+              if (name && email) {
+                  // In offline/simple import, we just generate an ID.
+                  // For real auth bulk import, it's complex client-side.
+                  // Here we add to DB list.
+                  const newTeacher: Teacher = {
+                      id: `imported_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                      name,
+                      nip,
+                      email,
+                      password
+                  };
+                  onAddTeacher(newTeacher);
+                  successCount++;
+              }
+          });
+
+          showToast(`Berhasil mengimport ${successCount} data guru.`, "success");
+          if (fileInputRef.current) fileInputRef.current.value = ""; // Reset input
+      };
+      reader.readAsBinaryString(file);
   };
 
   return (
     <div className="relative min-h-full">
       {/* Header Info */}
-      <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4 flex justify-between items-center">
+      <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
            <h3 className="font-bold text-blue-900">Data Guru</h3>
            <p className="text-xs text-blue-600">Total: {teachers.length} Guru</p>
+        </div>
+        
+        {/* Import/Export Buttons */}
+        <div className="flex gap-2">
+            <button 
+                onClick={handleDownloadTemplate}
+                className="flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold hover:bg-green-200 transition-colors"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                Template
+            </button>
+            <label className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-200 transition-colors cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                Import Excel
+                <input 
+                    type="file" 
+                    accept=".xlsx, .xls" 
+                    className="hidden" 
+                    ref={fileInputRef}
+                    onChange={handleImportExcel}
+                />
+            </label>
         </div>
       </div>
 
@@ -201,26 +319,30 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                             onChange={(e) => setFormData({...formData, email: e.target.value})}
                             placeholder="email@sekolah.com"
                             className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                            disabled={!!editingId} 
                         />
+                        {editingId && <p className="text-[10px] text-gray-400">Email tidak dapat diubah di menu ini.</p>}
                     </div>
-                    <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Password</label>
-                        <input 
-                            type="text"
-                            value={formData.password}
-                            onChange={(e) => setFormData({...formData, password: e.target.value})}
-                            placeholder="Password untuk login"
-                            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
-                    </div>
+                    {!editingId && (
+                        <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Password</label>
+                            <input 
+                                type="text"
+                                value={formData.password}
+                                onChange={(e) => setFormData({...formData, password: e.target.value})}
+                                placeholder="Password untuk login"
+                                className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                            />
+                        </div>
+                    )}
                 </div>
 
                 <button 
                     onClick={handleSave}
-                    disabled={!formData.name}
-                    className="w-full mt-8 bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                    disabled={!formData.name || isSubmitting}
+                    className={`w-full mt-8 bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors ${isSubmitting ? 'cursor-wait opacity-70' : ''}`}
                 >
-                    {editingId ? 'Simpan Perubahan' : 'Tambah Guru'}
+                    {isSubmitting ? 'Memproses...' : (editingId ? 'Simpan Perubahan' : 'Tambah Guru & Buat Akun')}
                 </button>
             </div>
         </div>

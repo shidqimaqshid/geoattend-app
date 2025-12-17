@@ -36,7 +36,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   return (
-    <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-50 transition-colors duration-300">
+    <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-50 transition-colors duration-300 border-b border-green-100 dark:border-gray-700">
         {/* Connection Status Bar */}
         {isOfflineMode && (
             <div className="bg-yellow-50 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-100 text-xs px-4 py-1 text-center border-b border-yellow-100 dark:border-yellow-700">
@@ -46,26 +46,36 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <div className="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
             {/* Brand / Logo */}
-            <div className="flex flex-col">
-              <h1 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                  <span className="bg-blue-600 text-white p-1 rounded-md text-xs">GO</span>
-                  GeoAttend
-              </h1>
-              <div className="flex items-center gap-2 text-[10px] mt-1">
-                 {!isOfflineMode && (
-                    <span className="flex items-center gap-1 text-green-600 dark:text-green-400 font-medium">
-                        <span className="relative flex h-1.5 w-1.5">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
-                        </span>
-                        Online
-                    </span>
-                 )}
-                 {currentLocation && (
-                     <span className="text-gray-400 dark:text-gray-500 font-mono">
-                         {currentLocation.latitude.toFixed(2)}, {currentLocation.longitude.toFixed(2)}
-                     </span>
-                 )}
+            <div className="flex items-center gap-3">
+              <img 
+                src="/logo.png" 
+                alt="Logo" 
+                className="w-10 h-10 object-contain"
+                onError={(e) => {
+                    // Fallback to online icon if local file is missing
+                    e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3652/3652191.png';
+                }} 
+              />
+              <div className="flex flex-col">
+                <h1 className="text-lg font-bold text-gray-800 dark:text-white leading-tight">
+                    SiAbsen Al-Barkah
+                </h1>
+                <div className="flex items-center gap-2 text-[10px] mt-0.5">
+                   {!isOfflineMode && (
+                      <span className="flex items-center gap-1 text-green-600 dark:text-green-400 font-medium">
+                          <span className="relative flex h-1.5 w-1.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+                          </span>
+                          Online
+                      </span>
+                   )}
+                   {currentLocation && (
+                       <span className="text-gray-400 dark:text-gray-500 font-mono">
+                           {currentLocation.latitude.toFixed(4)}, {currentLocation.longitude.toFixed(4)}
+                       </span>
+                   )}
+                </div>
               </div>
             </div>
             
@@ -79,7 +89,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <p className="text-sm font-bold text-gray-800 dark:text-white leading-none">{user.name}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">{user.role}</p>
                     </div>
-                    <div className="w-10 h-10 rounded-full border-2 border-gray-100 dark:border-gray-700 overflow-hidden bg-gray-200 dark:bg-gray-700">
+                    <div className="w-10 h-10 rounded-full border-2 border-green-100 dark:border-gray-700 overflow-hidden bg-gray-200 dark:bg-gray-700">
                         {user.photoUrl ? (
                             <img src={user.photoUrl} alt="Profile" className="w-full h-full object-cover" />
                         ) : (
@@ -117,7 +127,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 )}
                                 <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
                             </div>
-                            <div className={`w-10 h-5 rounded-full flex items-center p-1 transition-colors ${isDarkMode ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                            <div className={`w-10 h-5 rounded-full flex items-center p-1 transition-colors ${isDarkMode ? 'bg-green-600' : 'bg-gray-300'}`}>
                                 <div className={`bg-white w-3 h-3 rounded-full shadow-md transform transition-transform ${isDarkMode ? 'translate-x-5' : 'translate-x-0'}`}></div>
                             </div>
                         </button>

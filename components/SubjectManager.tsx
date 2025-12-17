@@ -1,6 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Subject, Teacher, Office } from '../types';
+import * as XLSX from 'xlsx';
 
 interface SubjectManagerProps {
   subjects: Subject[];
@@ -21,6 +22,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
 }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({ 
     name: '', 
@@ -97,13 +99,102 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     resetForm();
   };
 
+  // --- EXCEL HANDLERS ---
+  const handleDownloadTemplate = () => {
+      const classNameExample = classes.length > 0 ? classes[0].name : "10 IPA 1";
+      const teacherNameExample = teachers.length > 0 ? teachers[0].name : "Budi Santoso";
+      const templateData = [
+          { "Nama Mapel": "Matematika", "Nama Guru": teacherNameExample, "Nama Kelas": classNameExample, "Hari": "Senin", "Jam Mulai": "07:00", "Jam Selesai": "08:30" },
+          { "Nama Mapel": "Fisika", "Nama Guru": teacherNameExample, "Nama Kelas": classNameExample, "Hari": "Selasa", "Jam Mulai": "09:00", "Jam Selesai": "10:30" }
+      ];
+      const ws = XLSX.utils.json_to_sheet(templateData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Template Mapel");
+      XLSX.writeFile(wb, "Template_Data_Mapel.xlsx");
+  };
+
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+          const bstr = evt.target?.result;
+          const wb = XLSX.read(bstr, { type: 'binary' });
+          const wsname = wb.SheetNames[0];
+          const ws = wb.Sheets[wsname];
+          const data = XLSX.utils.sheet_to_json(ws);
+
+          let successCount = 0;
+          let failCount = 0;
+          
+          data.forEach((row: any) => {
+              const name = row["Nama Mapel"];
+              const teacherName = row["Nama Guru"];
+              const className = row["Nama Kelas"];
+              const day = row["Hari"];
+              const startTime = row["Jam Mulai"];
+              const endTime = row["Jam Selesai"];
+
+              if (name && teacherName && className && day) {
+                  // Find IDs by Names
+                  const targetClass = classes.find(c => c.name.toLowerCase() === String(className).toLowerCase().trim());
+                  const targetTeacher = teachers.find(t => t.name.toLowerCase() === String(teacherName).toLowerCase().trim());
+                  
+                  if (targetClass && targetTeacher) {
+                      const newSubject: Subject = {
+                          id: `imp_subj_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                          name,
+                          teacherId: targetTeacher.id,
+                          teacherName: targetTeacher.name,
+                          classId: targetClass.id,
+                          className: targetClass.name,
+                          day,
+                          time: `${startTime} - ${endTime}`
+                      };
+                      onAddSubject(newSubject);
+                      successCount++;
+                  } else {
+                      failCount++;
+                  }
+              }
+          });
+
+          alert(`Import Selesai. Sukses: ${successCount}, Gagal (Data Guru/Kelas tidak cocok): ${failCount}`);
+          if (fileInputRef.current) fileInputRef.current.value = ""; 
+      };
+      reader.readAsBinaryString(file);
+  };
+
   return (
     <div className="relative min-h-full">
        {/* Header Info */}
-       <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 mb-4 flex justify-between items-center">
+       <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
            <h3 className="font-bold text-purple-900">Jadwal Pelajaran</h3>
            <p className="text-xs text-purple-600">Total: {subjects.length} Mapel</p>
+        </div>
+
+        {/* Import/Export Row */}
+        <div className="flex gap-2">
+             <button 
+                onClick={handleDownloadTemplate}
+                className="flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold hover:bg-green-200 transition-colors"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                Template
+            </button>
+            <label className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-200 transition-colors cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                Import
+                <input 
+                    type="file" 
+                    accept=".xlsx, .xls" 
+                    className="hidden" 
+                    ref={fileInputRef}
+                    onChange={handleImportExcel}
+                />
+            </label>
         </div>
       </div>
 

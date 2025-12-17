@@ -4,15 +4,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#2563eb" />
-    <meta name="description" content="GeoAttend AI - Sistem Absensi Lokasi Pintar" />
-    <title>GeoAttend AI</title>
+    <meta name="theme-color" content="#15803d" />
+    <meta name="description" content="Sistem Absensi Pondok Pesantren Al-Barkah, Pagerungan Kecil, Sapeken, Sumenep. Aplikasi monitoring kehadiran santri dan guru digital berbasis lokasi." />
+    <title>Sistem Absensi Pondok Pesantren Al-Barkah</title>
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json" />
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3652/3652191.png">
+    <!-- Updated Icons to use local logo -->
+    <link rel="apple-touch-icon" href="/logo.png">
+    <link rel="icon" type="image/png" href="/logo.png">
 
-    <!-- Tailwind CDN for simple setup, though PostCSS is better for production -->
+    <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -20,7 +22,8 @@
         theme: {
           extend: {
             colors: {
-              primary: '#2563eb',
+              primary: '#15803d', // Green-700
+              secondary: '#eab308', // Yellow-500
             }
           }
         }
@@ -30,11 +33,13 @@
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
     <style>
       body {
         font-family: 'Inter', sans-serif;
-        background-color: #f3f4f6;
+        background-color: #f0fdf4; /* Green-50 background */
         -webkit-tap-highlight-color: transparent;
       }
       .leaflet-container {
@@ -53,7 +58,11 @@
     "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
     "firebase/": "https://esm.sh/firebase@^12.6.0/",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "vite": "https://esm.sh/vite@^7.3.0"
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "xlsx": "https://esm.sh/xlsx@^0.18.5",
+    "jspdf": "https://esm.sh/jspdf@^3.0.4",
+    "jspdf-autotable": "https://esm.sh/jspdf-autotable@^5.0.2",
+    "path": "https://esm.sh/path@^0.12.7"
   }
 }
 </script>

@@ -1,6 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Student, Office, ClassSession } from '../types';
+import * as XLSX from 'xlsx';
 
 interface StudentManagerProps {
   students: Student[];
@@ -20,10 +21,11 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // State for History Modal
   const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
-  const [historyTab, setHistoryTab] = useState<'LOG' | 'SUBJECT'>('LOG'); // New Tab State
+  const [historyTab, setHistoryTab] = useState<'LOG' | 'SUBJECT'>('LOG'); 
   
   // Form State
   const [formData, setFormData] = useState<{
@@ -95,10 +97,69 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       photoUrl: formData.photoUrl
     };
 
-    onAddStudent(newStudent); // This works for update too in App.tsx
+    onAddStudent(newStudent); 
     
     setIsFormOpen(false);
     resetForm();
+  };
+
+  // --- EXCEL HANDLERS ---
+  const handleDownloadTemplate = () => {
+      // Provide valid class names as example
+      const classNameExample = classes.length > 0 ? classes[0].name : "10 IPA 1";
+      const templateData = [
+          { "Nama Lengkap": "Ahmad Dahlan", "Nama Kelas": classNameExample },
+          { "Nama Lengkap": "Fatimah Zahra", "Nama Kelas": classNameExample }
+      ];
+      const ws = XLSX.utils.json_to_sheet(templateData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Template Santri");
+      XLSX.writeFile(wb, "Template_Data_Santri.xlsx");
+  };
+
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+          const bstr = evt.target?.result;
+          const wb = XLSX.read(bstr, { type: 'binary' });
+          const wsname = wb.SheetNames[0];
+          const ws = wb.Sheets[wsname];
+          const data = XLSX.utils.sheet_to_json(ws);
+
+          let successCount = 0;
+          let failCount = 0;
+          
+          data.forEach((row: any) => {
+              const name = row["Nama Lengkap"];
+              const className = row["Nama Kelas"];
+
+              if (name && className) {
+                  // Find class ID by Name
+                  const targetClass = classes.find(c => c.name.toLowerCase() === String(className).toLowerCase().trim());
+                  
+                  if (targetClass) {
+                      const newStudent: Student = {
+                          id: `imp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                          name,
+                          classId: targetClass.id,
+                          className: targetClass.name,
+                          attendanceCount: 0
+                      };
+                      onAddStudent(newStudent);
+                      successCount++;
+                  } else {
+                      failCount++;
+                  }
+              }
+          });
+
+          alert(`Import Selesai. Sukses: ${successCount}, Gagal (Kelas tidak ditemukan): ${failCount}`);
+          if (fileInputRef.current) fileInputRef.current.value = ""; 
+      };
+      reader.readAsBinaryString(file);
   };
 
   const getStudentHistory = (studentId: string) => {
@@ -114,7 +175,6 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     return history;
   };
 
-  // New function to group history by subject
   const getSubjectStats = (studentId: string) => {
     const studentSessions = sessions.filter(s => s.studentAttendance && s.studentAttendance[studentId]);
     const summary: Record<string, { 
@@ -146,8 +206,30 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   return (
     <div className="relative min-h-full">
       
-      {/* --- Filter Bar --- */}
-      <div className="sticky top-0 bg-gray-50 dark:bg-gray-900 z-10 py-2 mb-2">
+      {/* --- Filter Bar & Import --- */}
+      <div className="sticky top-0 bg-gray-50 dark:bg-gray-900 z-10 py-2 mb-2 space-y-2">
+        {/* Import/Export Row */}
+        <div className="flex justify-end gap-2 px-1">
+             <button 
+                onClick={handleDownloadTemplate}
+                className="flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold hover:bg-green-200 transition-colors"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                Template
+            </button>
+            <label className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-200 transition-colors cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                Import
+                <input 
+                    type="file" 
+                    accept=".xlsx, .xls" 
+                    className="hidden" 
+                    ref={fileInputRef}
+                    onChange={handleImportExcel}
+                />
+            </label>
+        </div>
+
         <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
             <button
             onClick={() => setActiveFilter('ALL')}

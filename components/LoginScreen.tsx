@@ -16,6 +16,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
   // Login State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false); // New State for visibility toggle
   const [rememberMe, setRememberMe] = useState(false);
   
   // Forgot Password State
@@ -27,7 +28,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
   const [isLoading, setIsLoading] = useState(false);
 
   // Hardcoded Admin Credentials (fallback/master)
-  const ADMIN_EMAIL = 'admin@geoattend.com';
+  const ADMIN_EMAIL = 'admin@albarkah.com';
   // Specific Super Admin Email from User Request
   const SUPER_ADMIN_EMAIL = 'maqshidnjr11@gmail.com';
   const SUPER_ADMIN_PASS = 'njrr16Yuliadi';
@@ -39,10 +40,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
 
     try {
         const inputEmail = email.trim();
-        const inputPass = password; // Removed .trim() to ensure complex passwords work exactly as typed
+        const inputPass = password; 
         
         // 0. HARDCODED CREDENTIAL BYPASS
-        // Check these FIRST to ensure the owner can always login, even if Firebase Auth fails or desyncs.
         const isDefaultAdmin = inputEmail === ADMIN_EMAIL && inputPass === 'admin123';
         const isSuperAdmin = inputEmail.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() && inputPass === SUPER_ADMIN_PASS;
 
@@ -50,7 +50,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
              const bypassId = isSuperAdmin ? 'super-admin-bypass' : 'admin-master-bypass';
              let bypassUser = {
                 id: bypassId,
-                name: isSuperAdmin ? 'Maqadi Shidqi' : 'Admin Master',
+                name: isSuperAdmin ? 'Maqadi Shidqi' : 'Admin Al-Barkah',
                 role: 'admin' as const,
                 photoUrl: '',
                 email: inputEmail,
@@ -64,10 +64,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                     const userDbRef = ref(db, `teachers/${bypassId}`);
                     const snapshot = await get(userDbRef);
                     if (snapshot.exists()) {
-                         // Merge DB data (like updated photo/name) with the hardcoded base
+                         // Merge DB data
                         bypassUser = { ...bypassUser, ...snapshot.val() };
                     } else {
-                        // Create the record if it doesn't exist
+                        // Create the record
                         await set(userDbRef, bypassUser);
                     }
                 } catch (e) {
@@ -91,19 +91,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                 const firebaseUser = userCredential.user;
 
                 // B. Fetch Role & Profile from Realtime Database using UID
-                // Path: teachers/{uid}
                 const userDbRef = ref(db, `teachers/${firebaseUser.uid}`);
                 const snapshot = await get(userDbRef);
 
                 if (snapshot.exists()) {
-                    // Data exists, load role from DB
                     const data = snapshot.val();
                     authenticatedUser = { ...data, id: firebaseUser.uid };
-                    role = data.role || 'teacher'; // Default to teacher if role missing
+                    role = data.role || 'teacher'; 
                 } else {
-                    // C. User exists in Auth but NOT in Database (First time login / Sync)
-                    const newRole = 'teacher'; // Default new users to teacher unless caught by bypass above
-
+                    const newRole = 'teacher'; 
                     const newUserData = {
                         id: firebaseUser.uid,
                         name: firebaseUser.displayName || inputEmail.split('@')[0],
@@ -131,7 +127,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                 }
             }
         } 
-        // 2. Offline Mode Fallback (Local Data)
+        // 2. Offline Mode Fallback
         else {
             const teacher = teachers.find(t => t.email === inputEmail);
             if (teacher) {
@@ -168,12 +164,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
 
     try {
         if (auth) {
-            // Use Firebase Auth password reset
             await sendPasswordResetEmail(auth, inputEmail);
             setSuccessMessage(`Link reset password telah dikirim ke ${inputEmail}. Silakan periksa inbox/spam email Anda.`);
             setResetEmail('');
         } else {
-            // Simulation for offline/demo
+            // Simulation
             setTimeout(async () => {
                 let exists = teachers.some(t => t.email === inputEmail);
                 if (exists || inputEmail === ADMIN_EMAIL) {
@@ -184,7 +179,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                 }
                 setIsLoading(false);
             }, 1500);
-            return; // Exit early for simulation
+            return;
         }
     } catch (err: any) {
         console.error("Reset Password Error:", err);
@@ -201,29 +196,34 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col justify-center items-center p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm animate-fade-in-up border border-white/50 backdrop-blur-sm">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 dark:from-gray-900 dark:to-green-900 flex flex-col justify-center items-center p-4 transition-colors duration-300">
+        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-sm animate-fade-in-up border border-white/50 dark:border-gray-700 backdrop-blur-sm transition-colors duration-300">
             
             {/* Logo Section */}
             <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-blue-600 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg shadow-blue-200 transform rotate-3 hover:rotate-0 transition-transform duration-300">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
+                <div className="w-24 h-24 mx-auto flex items-center justify-center mb-4 transform hover:scale-105 transition-transform duration-300">
+                    <img 
+                        src="/logo.png" 
+                        alt="Logo Al-Barkah" 
+                        className="w-full h-full object-contain drop-shadow-md"
+                        onError={(e) => {
+                             // Fallback to online icon if local file is missing
+                            e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3652/3652191.png';
+                        }}
+                    />
                 </div>
-                <h1 className="text-2xl font-bold text-gray-800 tracking-tight">GeoAttend AI</h1>
-                <p className="text-gray-500 text-sm mt-1">Sistem Absensi Cerdas</p>
+                <h1 className="text-xl font-bold text-gray-800 dark:text-white leading-tight">Sistem Absensi<br/>Pondok Pesantren Al-Barkah</h1>
+                <p className="text-gray-500 dark:text-gray-400 text-xs mt-2 font-medium">Pagerungan Kecil, Sapeken, Sumenep</p>
             </div>
 
             {view === 'LOGIN' ? (
                 /* LOGIN FORM */
                 <form onSubmit={handleLogin} className="space-y-5">
                     <div>
-                        <label className="block text-xs font-bold text-gray-700 uppercase mb-2">Email Address</label>
+                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-2">Email Address</label>
                         <div className="relative">
                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 dark:text-gray-500" viewBox="0 0 20 20" fill="currentColor">
                                     <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
                                     <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
                                 </svg>
@@ -232,29 +232,45 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                                 type="email" 
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white"
-                                placeholder="nama@sekolah.com"
+                                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all bg-gray-50 dark:bg-gray-700 focus:bg-white dark:focus:bg-gray-600 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+                                placeholder="nama@albarkah.com"
                                 required
                             />
                         </div>
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-gray-700 uppercase mb-2">Password</label>
+                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-2">Password</label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 dark:text-gray-500" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                                 </svg>
                             </div>
                             <input 
-                                type="password" 
+                                type={showPassword ? "text" : "password"}
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white"
+                                className="w-full pl-10 pr-10 py-3 rounded-xl border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all bg-gray-50 dark:bg-gray-700 focus:bg-white dark:focus:bg-gray-600 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
                                 placeholder="••••••••"
                                 required
                             />
+                             <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer focus:outline-none"
+                            >
+                                {showPassword ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                                    </svg>
+                                ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l1.415 1.414C1.846 6.31 0 8.783 0 10c0 4.418 4.478 8 10 8 2.348 0 4.472-.646 6.118-1.743l1.589 1.59a1 1 0 001.414-1.414l-15.414-15.414zM10 16a5.996 5.996 0 01-4.706-2.296l2.954-2.954a2 2 0 112.502 2.502l2.19 2.191A5.986 5.986 0 0110 16zm5.882-5.882l-2.029-2.029A5.96 5.96 0 0010 6c-2.006 0-3.785.63-5.235 1.705L3.616 6.556C4.945 4.881 7.288 3.844 10 3.844c4.418 0 8 3.582 8 8 0 .584-.06 1.155-.174 1.705l-2.944-2.944z" clipRule="evenodd" />
+                                    </svg>
+                                )}
+                            </button>
                         </div>
                     </div>
 
@@ -265,10 +281,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                                 type="checkbox" 
                                 checked={rememberMe}
                                 onChange={(e) => setRememberMe(e.target.checked)}
-                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                                className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded cursor-pointer"
                             />
-                            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 cursor-pointer select-none">
-                                Jangan lupakan saya
+                            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                                Ingat Saya
                             </label>
                         </div>
                         <button 
@@ -278,14 +294,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                                 setError('');
                                 setSuccessMessage('');
                             }}
-                            className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors"
+                            className="text-sm font-medium text-green-600 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300 transition-colors"
                         >
                             Lupa password?
                         </button>
                     </div>
 
                     {error && (
-                        <div className="bg-red-50 text-red-600 text-xs p-3 rounded-lg border border-red-100 flex items-center gap-2 animate-pulse">
+                        <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 text-xs p-3 rounded-lg border border-red-100 dark:border-red-800 flex items-center gap-2 animate-pulse">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                             </svg>
@@ -297,7 +313,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                         type="submit" 
                         disabled={isLoading || !email || !password}
                         className={`w-full py-3.5 rounded-xl font-bold text-white shadow-lg transition-all transform active:scale-95 flex justify-center items-center gap-2 ${
-                            isLoading ? 'bg-blue-400 cursor-wait' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'
+                            isLoading ? 'bg-green-400 cursor-wait' : 'bg-green-700 hover:bg-green-800 shadow-green-200 dark:shadow-none'
                         }`}
                     >
                         {isLoading && (
@@ -314,15 +330,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                 /* FORGOT PASSWORD FORM */
                 <form onSubmit={handleForgotPassword} className="space-y-5">
                     <div className="text-center mb-2">
-                        <h3 className="text-lg font-bold text-gray-800">Reset Password</h3>
-                        <p className="text-xs text-gray-500">Masukkan email yang terdaftar untuk menerima link reset.</p>
+                        <h3 className="text-lg font-bold text-gray-800 dark:text-white">Reset Password</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Masukkan email yang terdaftar untuk menerima link reset.</p>
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-gray-700 uppercase mb-2">Email Address</label>
+                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-2">Email Address</label>
                         <div className="relative">
                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 dark:text-gray-500" viewBox="0 0 20 20" fill="currentColor">
                                     <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
                                     <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
                                 </svg>
@@ -331,15 +347,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                                 type="email" 
                                 value={resetEmail}
                                 onChange={(e) => setResetEmail(e.target.value)}
-                                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white"
-                                placeholder="nama@sekolah.com"
+                                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all bg-gray-50 dark:bg-gray-700 focus:bg-white dark:focus:bg-gray-600 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+                                placeholder="nama@albarkah.com"
                                 required
                             />
                         </div>
                     </div>
 
                     {error && (
-                        <div className="bg-red-50 text-red-600 text-xs p-3 rounded-lg border border-red-100 flex items-center gap-2">
+                        <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 text-xs p-3 rounded-lg border border-red-100 dark:border-red-800 flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                             </svg>
@@ -348,7 +364,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                     )}
 
                     {successMessage && (
-                        <div className="bg-green-50 text-green-700 text-xs p-3 rounded-lg border border-green-100 flex items-center gap-2">
+                        <div className="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs p-3 rounded-lg border border-green-100 dark:border-green-800 flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                             </svg>
@@ -360,7 +376,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                         type="submit" 
                         disabled={isLoading || !resetEmail || !!successMessage}
                         className={`w-full py-3.5 rounded-xl font-bold text-white shadow-lg transition-all transform active:scale-95 flex justify-center items-center gap-2 ${
-                            isLoading || !!successMessage ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'
+                            isLoading || !!successMessage ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 shadow-green-200 dark:shadow-none'
                         }`}
                     >
                         {isLoading && (
@@ -379,7 +395,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                             setError('');
                             setSuccessMessage('');
                         }}
-                        className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 font-medium transition-colors"
+                        className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 font-medium transition-colors"
                     >
                         &larr; Kembali ke Login
                     </button>
@@ -387,10 +403,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
             )}
             
             {/* Footer Credentials Info (For Testing) */}
-            <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-                <p className="text-[10px] text-gray-400">
-                    <b>Admin:</b> admin@geoattend.com (Role: Admin)<br/>
-                    <b>Guru:</b> Email lain di Firebase Auth (Role: Teacher)
+            <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 text-center">
+                <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                    &copy; 2025 Pondok Pesantren Al-Barkah
                 </p>
             </div>
         </div>
