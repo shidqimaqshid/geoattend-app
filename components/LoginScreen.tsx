@@ -1,12 +1,12 @@
 
 import React, { useState } from 'react';
 import { Teacher } from '../types';
-import { db, auth } from '../services/firebase'; // Import auth
-import { ref, get, set } from 'firebase/database'; // Added 'set' import
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'; // Firebase Auth methods
+import { db, auth } from '../services/firebase'; 
+import { ref, get, set } from 'firebase/database'; 
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'; 
 
 interface LoginScreenProps {
-  teachers: Teacher[]; // Fallback for offline mode
+  teachers: Teacher[]; 
   onLoginSuccess: (role: 'admin' | 'teacher', userData: any, rememberMe: boolean) => void;
 }
 
@@ -16,7 +16,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
   // Login State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false); // New State for visibility toggle
+  const [showPassword, setShowPassword] = useState(false); 
   const [rememberMe, setRememberMe] = useState(false);
   
   // Forgot Password State
@@ -27,9 +27,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Hardcoded Admin Credentials (fallback/master)
   const ADMIN_EMAIL = 'admin@albarkah.com';
-  // Specific Super Admin Email from User Request
   const SUPER_ADMIN_EMAIL = 'maqshidnjr11@gmail.com';
   const SUPER_ADMIN_PASS = 'njrr16Yuliadi';
 
@@ -58,16 +56,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                 password: inputPass
             };
 
-            // Try to sync/fetch from DB to persist profile changes for this bypass user
             if (db) {
                 try {
                     const userDbRef = ref(db, `teachers/${bypassId}`);
                     const snapshot = await get(userDbRef);
                     if (snapshot.exists()) {
-                         // Merge DB data
                         bypassUser = { ...bypassUser, ...snapshot.val() };
                     } else {
-                        // Create the record
                         await set(userDbRef, bypassUser);
                     }
                 } catch (e) {
@@ -83,14 +78,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
         let authenticatedUser = null;
         let role: 'admin' | 'teacher' = 'teacher';
 
-        // 1. Firebase Authentication (Primary Method)
+        // 1. Firebase Authentication
         if (auth && db) {
             try {
-                // A. Sign In via Firebase Auth
                 const userCredential = await signInWithEmailAndPassword(auth, inputEmail, inputPass);
                 const firebaseUser = userCredential.user;
 
-                // B. Fetch Role & Profile from Realtime Database using UID
                 const userDbRef = ref(db, `teachers/${firebaseUser.uid}`);
                 const snapshot = await get(userDbRef);
 
@@ -184,7 +177,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
     } catch (err: any) {
         console.error("Reset Password Error:", err);
         if (err.code === 'auth/user-not-found') {
-             setError("Email tidak terdaftar.");
+             // CRITICAL FIX: Check if user exists in DB to give specific advice
+             const existsInDb = teachers.some(t => t.email === inputEmail);
+             if (existsInDb) {
+                 setError("Data guru ditemukan, tapi akun Login belum aktif. Hubungi Admin untuk dibuatkan akun.");
+             } else {
+                 setError("Email tidak terdaftar di sistem.");
+             }
         } else if (err.code === 'auth/invalid-email') {
              setError("Format email tidak valid.");
         } else {
@@ -199,7 +198,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 dark:from-gray-900 dark:to-green-900 flex flex-col justify-center items-center p-4 transition-colors duration-300">
         <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-sm animate-fade-in-up border border-white/50 dark:border-gray-700 backdrop-blur-sm transition-colors duration-300">
             
-            {/* Logo Section */}
             <div className="text-center mb-8">
                 <div className="w-24 h-24 mx-auto flex items-center justify-center mb-4 transform hover:scale-105 transition-transform duration-300">
                     <img 
@@ -207,7 +205,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                         alt="Logo Al-Barkah" 
                         className="w-full h-full object-contain drop-shadow-md"
                         onError={(e) => {
-                             // Fallback to online icon if local file is missing
                             e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3652/3652191.png';
                         }}
                     />
@@ -217,7 +214,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
             </div>
 
             {view === 'LOGIN' ? (
-                /* LOGIN FORM */
                 <form onSubmit={handleLogin} className="space-y-5">
                     <div>
                         <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-2">Email Address</label>
@@ -348,24 +344,24 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                                 value={resetEmail}
                                 onChange={(e) => setResetEmail(e.target.value)}
                                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all bg-gray-50 dark:bg-gray-700 focus:bg-white dark:focus:bg-gray-600 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
-                                placeholder="nama@albarkah.com"
+                                placeholder="email@sekolah.com"
                                 required
                             />
                         </div>
                     </div>
 
                     {error && (
-                        <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 text-xs p-3 rounded-lg border border-red-100 dark:border-red-800 flex items-center gap-2">
+                        <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 text-xs p-3 rounded-lg border border-red-100 dark:border-red-800 flex items-center gap-2 animate-pulse">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                             </svg>
                             {error}
                         </div>
                     )}
-
+                    
                     {successMessage && (
-                        <div className="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs p-3 rounded-lg border border-green-100 dark:border-green-800 flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <div className="bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-300 text-xs p-3 rounded-lg border border-green-100 dark:border-green-800 flex items-center gap-2">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                             </svg>
                             {successMessage}
@@ -374,9 +370,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
 
                     <button 
                         type="submit" 
-                        disabled={isLoading || !resetEmail || !!successMessage}
+                        disabled={isLoading || !resetEmail}
                         className={`w-full py-3.5 rounded-xl font-bold text-white shadow-lg transition-all transform active:scale-95 flex justify-center items-center gap-2 ${
-                            isLoading || !!successMessage ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 shadow-green-200 dark:shadow-none'
+                            isLoading ? 'bg-green-400 cursor-wait' : 'bg-green-700 hover:bg-green-800 shadow-green-200 dark:shadow-none'
                         }`}
                     >
                         {isLoading && (
@@ -385,28 +381,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
                         )}
-                         {isLoading ? 'Mengirim...' : 'Kirim Link Reset'}
+                        {isLoading ? 'Mengirim Link...' : 'Kirim Link Reset'}
                     </button>
 
-                    <button 
-                        type="button"
-                        onClick={() => {
-                            setView('LOGIN');
-                            setError('');
-                            setSuccessMessage('');
-                        }}
-                        className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 font-medium transition-colors"
-                    >
-                        &larr; Kembali ke Login
-                    </button>
+                    <div className="text-center mt-4">
+                        <button 
+                            type="button"
+                            onClick={() => {
+                                setView('LOGIN');
+                                setError('');
+                                setSuccessMessage('');
+                            }}
+                            className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                        >
+                            Kembali ke Login
+                        </button>
+                    </div>
                 </form>
             )}
             
-            {/* Footer Credentials Info (For Testing) */}
-            <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 text-center">
-                <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                    &copy; 2025 Pondok Pesantren Al-Barkah
-                </p>
+            <div className="mt-8 text-center text-[10px] text-gray-400 dark:text-gray-500">
+                &copy; {new Date().getFullYear()} GeoAttend AI • Pondok Pesantren Al-Barkah
             </div>
         </div>
     </div>
