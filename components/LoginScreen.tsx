@@ -2,8 +2,8 @@
 import React, { useState } from 'react';
 import { Teacher } from '../types';
 import { db, auth } from '../services/firebase'; 
-import { ref, get, set } from 'firebase/database'; 
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'; 
+import { ref, get, set, remove } from 'firebase/database'; 
+import { signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmailAndPassword } from 'firebase/auth'; 
 
 interface LoginScreenProps {
   teachers: Teacher[]; 
@@ -81,6 +81,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
         // 1. Firebase Authentication
         if (auth && db) {
             try {
+                // Attempt standard login
                 const userCredential = await signInWithEmailAndPassword(auth, inputEmail, inputPass);
                 const firebaseUser = userCredential.user;
 
@@ -92,6 +93,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
                     authenticatedUser = { ...data, id: firebaseUser.uid };
                     role = data.role || 'teacher'; 
                 } else {
+                    // Create DB entry if missing
                     const newRole = 'teacher'; 
                     const newUserData = {
                         id: firebaseUser.uid,
@@ -109,8 +111,41 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
 
             } catch (authErr: any) {
                 console.error("Auth Error:", authErr.code);
+                
+                // --- AUTO MIGRATION LOGIC ---
+                // If user not found in Auth but exists in DB (Imported), try to create them
                 if (authErr.code === 'auth/invalid-credential' || authErr.code === 'auth/user-not-found' || authErr.code === 'auth/wrong-password') {
-                    throw new Error("Email atau password salah.");
+                    
+                    const existingTeacherInDb = teachers.find(t => t.email === inputEmail);
+                    
+                    // Check if password matches the one stored in DB (Plaintext from import)
+                    if (existingTeacherInDb && existingTeacherInDb.password === inputPass) {
+                         try {
+                             // Create Auth User
+                             const newUserCred = await createUserWithEmailAndPassword(auth, inputEmail, inputPass);
+                             const newUid = newUserCred.user.uid;
+                             
+                             // Migrate Data: Move from old ID to new UID
+                             const oldId = existingTeacherInDb.id;
+                             const newUserData = { ...existingTeacherInDb, id: newUid };
+                             
+                             // Save to new path
+                             await set(ref(db, `teachers/${newUid}`), newUserData);
+                             
+                             // Remove old path if different
+                             if (oldId !== newUid) {
+                                 await remove(ref(db, `teachers/${oldId}`));
+                             }
+
+                             authenticatedUser = newUserData;
+                             role = 'teacher';
+                         } catch (createErr: any) {
+                             console.error("Migration Failed:", createErr);
+                             throw new Error("Gagal mengaktifkan akun import. Hubungi admin.");
+                         }
+                    } else {
+                         throw new Error("Email atau password salah.");
+                    }
                 } else if (authErr.code === 'auth/too-many-requests') {
                     throw new Error("Terlalu banyak percobaan gagal. Silakan coba lagi nanti.");
                 } else if (authErr.code === 'auth/network-request-failed') {
@@ -180,7 +215,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
              // CRITICAL FIX: Check if user exists in DB to give specific advice
              const existsInDb = teachers.some(t => t.email === inputEmail);
              if (existsInDb) {
-                 setError("Data guru ditemukan, tapi akun Login belum aktif. Hubungi Admin untuk dibuatkan akun.");
+                 setError("Data guru ditemukan, tapi akun Login belum aktif. Silahkan Login dengan password default untuk mengaktifkan.");
              } else {
                  setError("Email tidak terdaftar di sistem.");
              }

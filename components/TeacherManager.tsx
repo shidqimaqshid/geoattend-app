@@ -272,7 +272,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                 {teacher.photoUrl ? (
                     <img src={teacher.photoUrl} alt={teacher.name} className="w-full h-full object-cover" />
                 ) : (
-                    <span className="text-orange-600 font-bold text-lg">{teacher.name.substring(0, 2).toUpperCase()}</span>
+                    <span className="text-orange-600 font-bold text-lg">{(teacher.name || '??').substring(0, 2).toUpperCase()}</span>
                 )}
               </div>
               <div className="overflow-hidden">

@@ -94,7 +94,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             <img src={user.photoUrl} alt="Profile" className="w-full h-full object-cover" />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-500 dark:text-gray-300 font-bold">
-                                {user.name.charAt(0).toUpperCase()}
+                                {(user.name || '?').charAt(0).toUpperCase()}
                             </div>
                         )}
                     </div>

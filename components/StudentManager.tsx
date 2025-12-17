@@ -273,7 +273,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                             {student.photoUrl ? (
                                 <img src={student.photoUrl} alt={student.name} className="w-full h-full object-cover" />
                             ) : (
-                                <span className="text-blue-600 dark:text-blue-300 font-bold text-lg">{student.name.charAt(0).toUpperCase()}</span>
+                                <span className="text-blue-600 dark:text-blue-300 font-bold text-lg">{(student.name || '?').charAt(0).toUpperCase()}</span>
                             )}
                         </div>
                         <div>
@@ -420,7 +420,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                             {viewingStudent.photoUrl ? (
                                 <img src={viewingStudent.photoUrl} alt={viewingStudent.name} className="w-full h-full object-cover" />
                             ) : (
-                                <span className="text-blue-600 dark:text-blue-300 font-bold">{viewingStudent.name.charAt(0).toUpperCase()}</span>
+                                <span className="text-blue-600 dark:text-blue-300 font-bold">{(viewingStudent.name || '?').charAt(0).toUpperCase()}</span>
                             )}
                         </div>
                         <div>

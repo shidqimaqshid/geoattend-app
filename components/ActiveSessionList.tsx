@@ -38,6 +38,9 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
   const [notes, setNotes] = useState('');
   const [substituteId, setSubstituteId] = useState('');
   
+  // --- STATE FOR IMAGE PREVIEW (ADMIN) ---
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
   // --- NOTIFICATION LOGIC ---
   useEffect(() => {
     if (user.role === 'teacher' && Notification.permission !== 'denied') {
@@ -127,7 +130,9 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                                       {u.photoUrl ? (
                                           <img src={u.photoUrl} alt={u.name} className="w-full h-full object-cover"/>
                                       ) : (
-                                          <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-500">{u.name.charAt(0)}</div>
+                                          <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-500">
+                                              {(u.name || '?').charAt(0).toUpperCase()}
+                                          </div>
                                       )}
                                   </div>
                                   <div>
@@ -183,51 +188,108 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                   </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-6">
-                {/* Teacher Attendance Stats */}
-                <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <h3 className="font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                        Absensi Guru (Hari Ini)
-                    </h3>
-                    <div className="grid grid-cols-3 gap-3 text-center">
-                        <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-xl border border-green-100 dark:border-green-800">
-                            <span className="block text-2xl font-bold text-green-600 dark:text-green-400">{teacherPresent}</span>
-                            <span className="text-xs font-medium text-green-800 dark:text-green-300">Hadir</span>
-                        </div>
-                        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-100 dark:border-blue-800">
-                            <span className="block text-2xl font-bold text-blue-600 dark:text-blue-400">{teacherPermission}</span>
-                            <span className="text-xs font-medium text-blue-800 dark:text-blue-300">Izin/Sakit</span>
-                        </div>
-                        <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-xl border border-red-100 dark:border-red-800">
-                            <span className="block text-2xl font-bold text-red-600 dark:text-red-400">{teacherAlpha}</span>
-                            <span className="text-xs font-medium text-red-800 dark:text-red-300">Belum Absen</span>
-                        </div>
-                    </div>
-                </div>
+              {/* ACTIVITY LOG WITH PROOF VIEW */}
+              <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                 <h3 className="font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Aktivitas Mengajar Hari Ini
+                </h3>
+                
+                <div className="space-y-4">
+                    {todaySessions.length === 0 ? (
+                        <p className="text-center text-sm text-gray-400 py-6">Belum ada aktivitas mengajar hari ini.</p>
+                    ) : (
+                        todaySessions.map(session => {
+                            // Find Teacher Name (in case session data is stale)
+                            const teacherName = teachers.find(t => t.id === session.teacherId)?.name || session.teacherStatus;
+                            
+                            return (
+                                <div key={session.id} className="border border-gray-100 dark:border-gray-700 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50 dark:bg-gray-900/20">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-xs font-bold text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 rounded">
+                                                {session.subjectName}
+                                            </span>
+                                            <span className="text-xs text-gray-500 dark:text-gray-400">• {session.className}</span>
+                                        </div>
+                                        <p className="font-bold text-gray-800 dark:text-white">{teacherName}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            Masuk: {new Date(session.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                            {session.attendanceStatus === 'LATE' && <span className="text-red-500 ml-1">(Terlambat)</span>}
+                                        </p>
+                                    </div>
 
-                {/* Student Attendance Stats */}
-                <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <h3 className="font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                        Absensi Santri (Hari Ini)
-                    </h3>
-                    <div className="grid grid-cols-3 gap-3 text-center">
-                        <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-xl border border-green-100 dark:border-green-800">
-                            <span className="block text-2xl font-bold text-green-600 dark:text-green-400">{studentPresent}</span>
-                            <span className="text-xs font-medium text-green-800 dark:text-green-300">Hadir</span>
-                        </div>
-                        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-100 dark:border-blue-800">
-                            <span className="block text-2xl font-bold text-blue-600 dark:text-blue-400">{studentPermission}</span>
-                            <span className="text-xs font-medium text-blue-800 dark:text-blue-300">Izin/Sakit</span>
-                        </div>
-                        <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-xl border border-red-100 dark:border-red-800">
-                            <span className="block text-2xl font-bold text-red-600 dark:text-red-400">{studentAlpha}</span>
-                            <span className="text-xs font-medium text-red-800 dark:text-red-300">Alpha</span>
-                        </div>
-                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {/* Attendance Status Badge */}
+                                        {session.teacherStatus === 'PRESENT' && (
+                                            <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold rounded-full">
+                                                Hadir
+                                            </span>
+                                        )}
+                                        {(session.teacherStatus === 'PERMISSION' || session.teacherStatus === 'SICK') && (
+                                            <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold rounded-full">
+                                                Izin/Sakit
+                                            </span>
+                                        )}
+
+                                        {/* Actions: View Proof */}
+                                        {session.teacherStatus === 'PRESENT' && session.attendancePhotoUrl && (
+                                            <button 
+                                                onClick={() => setPreviewImage(session.attendancePhotoUrl!)}
+                                                className="px-3 py-1.5 text-xs font-bold border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 bg-white dark:bg-gray-800 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors flex items-center gap-1"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                </svg>
+                                                Foto
+                                            </button>
+                                        )}
+                                        {(session.teacherStatus === 'PERMISSION' || session.teacherStatus === 'SICK') && session.permissionProofUrl && (
+                                            <button 
+                                                onClick={() => {
+                                                    // Simple check if it's PDF or Image based on string or type
+                                                    if (session.permissionType === 'pdf') {
+                                                        // For PDF (Data URI), we might need to open in new tab
+                                                        const win = window.open();
+                                                        win?.document.write('<iframe src="' + session.permissionProofUrl  + '" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>');
+                                                    } else {
+                                                        setPreviewImage(session.permissionProofUrl!);
+                                                    }
+                                                }}
+                                                className="px-3 py-1.5 text-xs font-bold border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 bg-white dark:bg-gray-800 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center gap-1"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                </svg>
+                                                Bukti
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
                 </div>
               </div>
+
+              {/* IMAGE PREVIEW MODAL */}
+              {previewImage && (
+                  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-90 p-4" onClick={() => setPreviewImage(null)}>
+                      <div className="relative max-w-full max-h-full">
+                          <img src={previewImage} alt="Preview" className="max-w-full max-h-[90vh] rounded-lg shadow-2xl object-contain" />
+                          <button 
+                            className="absolute top-2 right-2 bg-white text-black rounded-full p-2 hover:bg-gray-200"
+                            onClick={() => setPreviewImage(null)}
+                          >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                          </button>
+                      </div>
+                  </div>
+              )}
           </div>
       );
   }
