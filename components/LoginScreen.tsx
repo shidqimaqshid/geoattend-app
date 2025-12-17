@@ -436,7 +436,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ teachers, onLoginSucce
             )}
             
             <div className="mt-8 text-center text-[10px] text-gray-400 dark:text-gray-500">
-                &copy; {new Date().getFullYear()} GeoAttend AI • Pondok Pesantren Al-Barkah
+                &copy; {new Date().getFullYear()} Yuliadi • Pondok Pesantren Al-Barkah
             </div>
         </div>
     </div>
