@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
-import { Coordinates, Office, AttendanceRecord, Student, Teacher, Subject, ClassSession, User, ToastMessage, ActiveUserSession } from './types';
+import { Coordinates, Office, Student, Teacher, Subject, ClassSession, User, ToastMessage, ActiveUserSession, AppConfig } from './types';
 import { getBrowserLocation, calculateDistance } from './utils/geo';
-import { getIndonesianDay, isTimeInRange, getFormattedDate } from './utils/dateUtils';
+import { getIndonesianDay, getFormattedDate } from './utils/dateUtils';
 import { OfficeManager } from './components/OfficeManager';
 import { StudentManager } from './components/StudentManager';
 import { TeacherManager } from './components/TeacherManager';
@@ -15,53 +14,38 @@ import { Reports } from './components/Reports';
 import { EditProfileModal } from './components/EditProfileModal';
 import { TeacherHistory } from './components/TeacherHistory';
 import { ToastContainer } from './components/Toast';
-import { db, isFirebaseConfigured } from './services/firebase';
-import { ref, onValue, set, remove, update, onDisconnect } from 'firebase/database';
+import { db } from './services/firebase';
+import { ref, onValue, set, remove, onDisconnect } from 'firebase/database';
 
-// Updated radius to 100m for better real-world usage in buildings
 const MAX_DISTANCE_METERS = 100; 
 
-// Initial Dummy Data for Offline Mode
-const DEFAULT_TEACHERS: Teacher[] = [
-  { id: '1', name: 'Budi Santoso', nip: '19820301', email: 'budi@guru.com', password: '123' },
-  { id: '2', name: 'Siti Aminah', nip: '19850412', email: 'siti@guru.com', password: '123' },
-  { id: '3', name: 'Dewi Lestari', nip: '19900101', email: 'dewi@guru.com', password: '123' },
-];
-
 const App: React.FC = () => {
-  // --- AUTH STATE ---
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  
-  // --- THEME STATE ---
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    if (typeof window !== 'undefined' && window.matchMedia) {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    return false;
-  });
+  const [isDarkMode, setIsDarkMode] = useState(() => 
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-
-  // --- LOCATION STATE ---
   const [currentLocation, setCurrentLocation] = useState<Coordinates | null>(null);
-  const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   
-  // --- DATA STATE ---
   const [offices, setOffices] = useState<Office[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [sessions, setSessions] = useState<ClassSession[]>([]); 
-  const [activeUsers, setActiveUsers] = useState<ActiveUserSession[]>([]); // NEW: Active Users
+  const [activeUsers, setActiveUsers] = useState<ActiveUserSession[]>([]);
   
-  // --- UI STATE ---
+  const [appConfig, setAppConfig] = useState<AppConfig>({
+    schoolYear: '2024/2025',
+    semester: 'Ganjil',
+    isSystemActive: true
+  });
+
   const [activeTab, setActiveTab] = useState<'checkin' | 'data_menu' | 'students' | 'subjects' | 'teachers' | 'admin' | 'reports' | 'teacher_history'>('checkin');
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null); 
-  const [isOfflineMode, setIsOfflineMode] = useState(!isFirebaseConfigured);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // --- HELPER: Toast ---
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     const id = Date.now().toString();
     setToasts(prev => [...prev, { id, message, type }]);
@@ -71,502 +55,226 @@ const App: React.FC = () => {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
 
-  // --- DARK MODE EFFECT ---
+  // Auto-sync with System Theme
   useEffect(() => {
-    if (isDarkMode) {
-        document.documentElement.classList.add('dark');
-    } else {
-        document.documentElement.classList.remove('dark');
-    }
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (e: MediaQueryListEvent) => setIsDarkMode(e.matches);
+    
+    mediaQuery.addEventListener('change', handleChange);
+    if (isDarkMode) document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
+    
+    return () => mediaQuery.removeEventListener('change', handleChange);
   }, [isDarkMode]);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e: MediaQueryListEvent) => {
-        setIsDarkMode(e.matches);
-    };
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, []);
-
-  // --- NOTIFICATION PERMISSION ---
-  useEffect(() => {
-      if ('Notification' in window && Notification.permission !== 'granted') {
-          Notification.requestPermission();
-      }
-  }, []);
-
-  // --- CHECK SESSION (Remember Me) ---
-  useEffect(() => {
     const savedUser = localStorage.getItem('geoattend_user');
     if (savedUser) {
-        try {
-            setCurrentUser(JSON.parse(savedUser));
-        } catch (e) {
-            console.error("Failed to restore session", e);
-            localStorage.removeItem('geoattend_user');
-        }
+        try { setCurrentUser(JSON.parse(savedUser)); } catch (e) { localStorage.removeItem('geoattend_user'); }
     }
   }, []);
 
-  // --- PRESENCE SYSTEM (Monitoring Online Users) ---
-  useEffect(() => {
-    if (currentUser && db && !isOfflineMode) {
-      const presenceRef = ref(db, `active_users/${currentUser.id}`);
-      
-      const setupPresence = async () => {
-        try {
-          // Get IP (Basic info)
-          let ip = 'Unknown';
-          try {
-            const res = await fetch('https://api.ipify.org?format=json');
-            const data = await res.json();
-            ip = data.ip;
-          } catch(e) {
-             console.warn("Could not fetch IP", e);
-          }
-
-          const sessionData = {
-            userId: currentUser.id,
-            name: currentUser.name,
-            role: currentUser.role,
-            ip: ip,
-            userAgent: navigator.userAgent,
-            lastSeen: Date.now(),
-            photoUrl: currentUser.photoUrl || '',
-            location: currentLocation // Pass null explicitly if null, do not use || undefined
-          };
-
-          // Update data - clean any accidental undefineds
-          const cleanData = JSON.parse(JSON.stringify(sessionData));
-          await update(presenceRef, cleanData);
-
-          // Set remove on disconnect
-          onDisconnect(presenceRef).remove();
-
-        } catch (e) {
-          console.error("Presence Error:", e);
-        }
-      };
-
-      setupPresence();
-
-      // Update timestamp/location every minute
-      const interval = setInterval(() => {
-         const updates = { 
-            lastSeen: Date.now(), 
-            location: currentLocation 
-         };
-         // Clean undefineds before sending to firebase
-         update(presenceRef, JSON.parse(JSON.stringify(updates)));
-      }, 60000);
-
-      return () => {
-        clearInterval(interval);
-        remove(presenceRef); // Cleanup on logout/unmount
-      };
-    }
-  }, [currentUser, isOfflineMode, currentLocation]); // Re-run if location changes to update DB
-
-  // --- DATA LOADING ---
   useEffect(() => {
     let unsubs: (() => void)[] = [];
+    if (db) {
+        unsubs.push(onValue(ref(db, 'config/app_settings'), (snap) => {
+            if (snap.exists()) setAppConfig(snap.val());
+        }));
 
-    if (db && !isOfflineMode) {
-        const handleError = (err: any) => {
-            console.warn("Firebase Sync Error:", err.message);
-            // Don't force offline mode immediately on one error, but maybe warn
-            if (!isOfflineMode) showToast("Koneksi tidak stabil, cek internet Anda.", "info");
+        const subscribe = (path: string, setter: (data: any[]) => void) => {
+            return onValue(ref(db, path), (snapshot) => {
+                const val = snapshot.val();
+                setter(val ? Object.values(val) : []);
+            });
         };
 
-        try {
-            const subscribe = (path: string, setter: (data: any[]) => void) => {
-                const dataRef = ref(db, path);
-                const unsubscribe = onValue(dataRef, (snapshot) => {
-                    const val = snapshot.val();
-                    if (val) {
-                        setter(Object.values(val));
-                    } else {
-                        setter([]);
-                    }
-                }, handleError);
-                return () => unsubscribe();
-            };
+        unsubs.push(subscribe('offices', setOffices));
+        unsubs.push(subscribe('students', setStudents));
+        unsubs.push(subscribe('teachers', setTeachers));
+        unsubs.push(subscribe('subjects', setSubjects));
+        unsubs.push(subscribe('sessions', setSessions));
+        unsubs.push(subscribe('active_users', setActiveUsers));
 
-            unsubs.push(subscribe('offices', setOffices));
-            unsubs.push(subscribe('students', setStudents));
-            unsubs.push(subscribe('teachers', setTeachers));
-            unsubs.push(subscribe('subjects', setSubjects));
-            unsubs.push(subscribe('sessions', setSessions));
-            // Listen to active users
-            unsubs.push(subscribe('active_users', setActiveUsers));
-
-        } catch (err: any) {
-            handleError(err);
+        if (currentUser) {
+            const presenceRef = ref(db, `active_users/${currentUser.id}`);
+            // IP injection would normally happen via server-side, here we simulate with a placeholder
+            set(presenceRef, {
+                userId: currentUser.id,
+                name: currentUser.name,
+                role: currentUser.role,
+                lastSeen: Date.now(),
+                photoUrl: currentUser.photoUrl || '',
+                ip: '192.168.1.1', // Placeholder
+                location: currentLocation,
+                userAgent: navigator.userAgent
+            });
+            onDisconnect(presenceRef).remove();
         }
-    } else {
-        const loadLocal = (key: string, setter: any, def: any = []) => {
-            const stored = localStorage.getItem(`geoattend_${key}`);
-            if (stored) setter(JSON.parse(stored));
-            else setter(def);
-        };
-
-        loadLocal('offices', setOffices);
-        loadLocal('students', setStudents);
-        loadLocal('teachers', setTeachers, DEFAULT_TEACHERS); 
-        loadLocal('subjects', setSubjects);
-        loadLocal('sessions', setSessions);
     }
-
-    return () => {
-        unsubs.forEach(fn => fn());
-    };
-  }, [isOfflineMode]);
+    return () => unsubs.forEach(fn => fn());
+  }, [currentUser, currentLocation]);
 
   const updateLocation = useCallback(async () => {
     setIsLocating(true);
-    setLocationError(null);
     try {
       const coords = await getBrowserLocation();
       setCurrentLocation(coords);
     } catch (err: any) {
-      setLocationError(err.message || 'Error getting location');
-      // No toast here to avoid spamming if GPS is off, alert handled in UI
+      console.error(err);
     } finally {
       setIsLocating(false);
     }
   }, []);
 
-  useEffect(() => {
-    if (currentUser) {
-        updateLocation();
-    }
-  }, [updateLocation, currentUser]);
+  useEffect(() => { if (currentUser) updateLocation(); }, [updateLocation, currentUser]);
 
-  // --- HELPER: Sanitize Data for Firebase ---
-  const sanitizeData = (data: any): any => {
-      return JSON.parse(JSON.stringify(data, (key, value) => {
-          return value === undefined ? null : value;
-      }));
+  const sanitizeData = (data: any): any => JSON.parse(JSON.stringify(data));
+
+  const handleUpdateConfig = async (newConfig: AppConfig) => {
+      if (db) {
+          await set(ref(db, 'config/app_settings'), newConfig);
+          showToast("Pengaturan sistem diperbarui", "success");
+      }
   };
 
-  const saveData = async (collectionName: string, id: string, data: any, setter: any, list: any[]) => {
-    const cleanData = sanitizeData(data);
-    
-    if (db && !isOfflineMode) {
+  const saveData = async (collectionName: string, id: string, data: any) => {
+    if (db) {
         try {
-            await set(ref(db, `${collectionName}/${id}`), cleanData);
-            showToast("Data berhasil disimpan", "success");
-        } catch (e: any) { 
-            console.error(`Error saving ${collectionName}:`, e);
-            showToast(`Gagal menyimpan: ${e.message}`, "error");
-        }
-    } else {
-        const newList = [...list.filter((item: any) => item.id !== id), cleanData];
-        setter(newList);
-        localStorage.setItem(`geoattend_${collectionName}`, JSON.stringify(newList));
-        showToast("Data disimpan (Offline Mode)", "success");
+            await set(ref(db, `${collectionName}/${id}`), sanitizeData(data));
+            showToast("Berhasil disimpan", "success");
+        } catch (e: any) { showToast("Gagal simpan", "error"); }
     }
   };
 
-  const removeData = async (collectionName: string, id: string, setter: any, list: any[]) => {
-    if (db && !isOfflineMode) {
-        try {
-            await remove(ref(db, `${collectionName}/${id}`));
-            showToast("Data dihapus", "success");
-        } catch (e: any) { 
-            console.error(`Error removing ${collectionName}:`, e); 
-            showToast("Gagal menghapus data", "error");
-        }
-    } else {
-        const newList = list.filter((item: any) => item.id !== id);
-        setter(newList);
-        localStorage.setItem(`geoattend_${collectionName}`, JSON.stringify(newList));
-        showToast("Data dihapus (Offline Mode)", "success");
-    }
-  };
-
-  // --- ATTENDANCE HANDLERS ---
   const handleTeacherCheckIn = async (subject: Subject, sessionData: ClassSession) => {
     const office = offices.find(o => o.id === subject.classId);
-    if (!office) {
-        showToast("Data lokasi kelas tidak ditemukan.", "error");
-        return;
-    }
-    if (!currentLocation) {
-        showToast("Lokasi GPS Anda belum ditemukan.", "error");
-        return;
-    }
-
+    if (!office || !currentLocation) return;
     const distance = calculateDistance(currentLocation, office.coordinates);
     if (distance > MAX_DISTANCE_METERS) {
-        showToast(`Gagal Absen! Jarak Anda: ${distance.toFixed(0)}m. Maks: ${MAX_DISTANCE_METERS}m dari kelas.`, "error");
+        showToast(`Gagal! Jarak: ${distance.toFixed(0)}m. Max: 100m.`, "error");
         return;
     }
-
-    const sessionToSave = { ...sessionData, status: 'ACTIVE' as const };
-    await saveData('sessions', sessionData.id, sessionToSave, setSessions, sessions);
-    showToast("Absensi Guru Berhasil! Silakan absen santri.", "success");
+    await saveData('sessions', sessionData.id, sessionData);
+    showToast("Absen berhasil!", "success");
   };
 
   const handleTeacherPermission = async (subject: Subject, sessionData: ClassSession) => {
-      const sessionToSave = { ...sessionData, status: 'ACTIVE' as const };
-      await saveData('sessions', sessionData.id, sessionToSave, setSessions, sessions);
-      showToast("Izin Berhasil Dikirim. Menunggu admin/guru piket.", "success");
+    await saveData('sessions', sessionData.id, sessionData);
+    showToast("Izin terkirim.", "success");
   };
 
-  const handleUpdateStudentAttendance = async (sessionId: string, studentId: string, status: 'PRESENT' | 'SICK' | 'PERMISSION' | 'ALPHA') => {
+  const handleUpdateStudentAttendance = async (sessionId: string, studentId: string, status: any) => {
     const session = sessions.find(s => s.id === sessionId);
-    if (!session) return;
-
-    const updatedSession = {
-        ...session,
-        studentAttendance: {
-            ...session.studentAttendance,
-            [studentId]: status
-        }
-    };
-    // Don't show toast for every student click, it's too spammy. Just save silent/optimistic.
-    
-    // Direct save logic without generic wrapper to avoid toast spam
-    const cleanData = sanitizeData(updatedSession);
-    if (db && !isOfflineMode) {
-        set(ref(db, `sessions/${sessionId}`), cleanData).catch(e => console.error(e));
-    } else {
-        const newList = [...sessions.filter(s => s.id !== sessionId), cleanData];
-        setSessions(newList);
-        localStorage.setItem(`geoattend_sessions`, JSON.stringify(newList));
-    }
+    if (!session || !db) return;
+    const updated = { ...session, studentAttendance: { ...session.studentAttendance, [studentId]: status } };
+    set(ref(db, `sessions/${sessionId}`), sanitizeData(updated));
   };
 
   const handleFinishSession = async (session: ClassSession) => {
-      const completedSession: ClassSession = { ...session, status: 'COMPLETED' as const };
-      await saveData('sessions', session.id, completedSession, setSessions, sessions);
+      await saveData('sessions', session.id, { ...session, status: 'COMPLETED' });
       setSelectedSubject(null);
-      showToast("Sesi Kelas Selesai.", "success");
-  };
-
-  const handleProfileUpdate = (updatedUser: User) => {
-    setCurrentUser(updatedUser);
-    
-    if (localStorage.getItem('geoattend_user')) {
-        localStorage.setItem('geoattend_user', JSON.stringify(updatedUser));
-    }
-
-    const userDataToSave = {
-        id: updatedUser.id,
-        name: updatedUser.name,
-        email: updatedUser.email || '',
-        role: updatedUser.role,
-        photoUrl: updatedUser.photoUrl || '',
-        nip: updatedUser.nip || (updatedUser.role === 'admin' ? '-' : ''),
-        password: updatedUser.password 
-    };
-
-    saveData('teachers', updatedUser.id, userDataToSave, setTeachers, teachers);
-    setIsProfileModalOpen(false);
-    showToast("Profil berhasil diperbarui", "success");
-  };
-
-  const getSubjectsForToday = () => {
-    const today = getIndonesianDay(new Date());
-    return subjects.filter(subject => subject.day === today);
+      showToast("Sesi pelajaran selesai.", "success");
   };
 
   if (!currentUser) {
       return (
           <>
             <ToastContainer toasts={toasts} onRemove={removeToast} />
-            <LoginScreen 
-                teachers={teachers} 
-                onLoginSuccess={(role, userData, rememberMe) => {
-                    setCurrentUser(userData);
-                    setActiveTab('checkin');
-                    showToast(`Selamat datang, ${userData.name}`, "success");
-                    if (rememberMe) {
-                        localStorage.setItem('geoattend_user', JSON.stringify(userData));
-                    }
-                }} 
-            />
+            <LoginScreen teachers={teachers} onLoginSuccess={(role, userData, rememberMe) => {
+                setCurrentUser(userData);
+                if (rememberMe) localStorage.setItem('geoattend_user', JSON.stringify(userData));
+            }} />
           </>
       );
   }
 
   const renderContent = () => {
       if (activeTab === 'checkin') {
-          if (selectedSubject) {
-             const todayStr = getFormattedDate(new Date());
-             const sessionId = `${selectedSubject.id}_${todayStr}`;
-             const existingSession = sessions.find(s => s.id === sessionId);
-
-             return (
-                <SessionDetail 
-                    subject={selectedSubject}
-                    session={existingSession}
-                    students={students}
-                    currentLocation={currentLocation}
-                    isLocating={isLocating}
-                    onTeacherCheckIn={handleTeacherCheckIn}
-                    onUpdateAttendance={handleUpdateStudentAttendance}
-                    onFinishSession={handleFinishSession}
-                    onBack={() => setSelectedSubject(null)}
-                    showToast={showToast}
-                />
-             );
+          if (!appConfig.isSystemActive && currentUser.role === 'teacher') {
+              return (
+                  <div className="flex flex-col items-center justify-center py-24 text-center space-y-4 px-6 animate-fade-in">
+                      <div className="w-20 h-20 bg-red-50 dark:bg-red-900/20 rounded-2xl flex items-center justify-center text-4xl text-red-600">🛑</div>
+                      <h2 className="text-xl font-bold text-gray-800 dark:text-white uppercase tracking-tight">Absensi Ditutup</h2>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 font-medium leading-relaxed">Sistem absensi sedang dinonaktifkan sementara oleh Admin.</p>
+                      <button onClick={() => setActiveTab('teacher_history')} className="mt-4 px-8 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all">Lihat Riwayat</button>
+                  </div>
+              );
           }
-          return (
-            <ActiveSessionList 
-                subjects={getSubjectsForToday()} 
-                allSubjects={subjects} 
-                sessions={sessions}
-                user={currentUser}
-                teachers={teachers} 
-                students={students}
-                activeUsers={activeUsers} // Pass active users to dashboard
-                onSelectSubject={setSelectedSubject}
-                onPermissionRequest={handleTeacherPermission}
-                showToast={showToast}
-            />
-          );
+          if (selectedSubject) {
+             const sessionId = `${selectedSubject.id}_${getFormattedDate(new Date())}`;
+             return <SessionDetail subject={selectedSubject} session={sessions.find(s => s.id === sessionId)} students={students} currentLocation={currentLocation} isLocating={isLocating} onTeacherCheckIn={handleTeacherCheckIn} onUpdateAttendance={handleUpdateStudentAttendance} onFinishSession={handleFinishSession} onBack={() => setSelectedSubject(null)} showToast={showToast} semester={appConfig.semester} schoolYear={appConfig.schoolYear} />;
+          }
+          return <ActiveSessionList subjects={subjects.filter(s => s.day === getIndonesianDay(new Date()))} sessions={sessions} user={currentUser} teachers={teachers} students={students} activeUsers={activeUsers} onSelectSubject={setSelectedSubject} showToast={showToast} semester={appConfig.semester} schoolYear={appConfig.schoolYear} onPermissionRequest={handleTeacherPermission} />;
       }
-
-      if (activeTab === 'teacher_history' && currentUser.role === 'teacher') {
-          return (
-              <TeacherHistory 
-                teacher={{ ...currentUser, nip: currentUser.nip || '-' } as Teacher}
-                subjects={subjects}
-                sessions={sessions}
-              />
-          );
-      }
-
+      
+      if (activeTab === 'teacher_history') return <TeacherHistory teacher={currentUser as any} subjects={subjects} sessions={sessions} />;
+      
       if (currentUser.role !== 'admin') return null;
 
       switch(activeTab) {
-          case 'reports':
-              return <Reports teachers={teachers} students={students} sessions={sessions} classes={offices} />;
+          case 'reports': return <Reports teachers={teachers} students={students} sessions={sessions} classes={offices} appConfig={appConfig} />;
           case 'data_menu':
               return (
                 <div className="space-y-6 animate-fade-in">
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Master Data</h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Kelola data sekolah di sini</p>
+                    <div className="px-2">
+                        <h2 className="text-xl font-bold text-gray-800 dark:text-white uppercase tracking-tight">Database Master</h2>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Periode {appConfig.schoolYear}</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <button onClick={() => setActiveTab('students')} className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95 group">
-                            <div className="w-14 h-14 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                            </div>
-                            <span className="font-bold text-gray-700 dark:text-gray-200">Santri</span>
-                        </button>
-                         <button onClick={() => setActiveTab('teachers')} className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95 group">
-                            <div className="w-14 h-14 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" /></svg>
-                            </div>
-                            <span className="font-bold text-gray-700 dark:text-gray-200">Guru</span>
-                        </button>
-                        <button onClick={() => setActiveTab('admin')} className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95 group">
-                            <div className="w-14 h-14 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                            </div>
-                            <span className="font-bold text-gray-700 dark:text-gray-200">Kelas</span>
-                        </button>
-                         <button onClick={() => setActiveTab('subjects')} className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95 group">
-                            <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-                            </div>
-                            <span className="font-bold text-gray-700 dark:text-gray-200">Mapel</span>
-                        </button>
+                    <div className="grid grid-cols-2 gap-3">
+                        {[ 
+                          { tab: 'students', label: 'Santri', color: 'blue', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
+                          { tab: 'teachers', label: 'Guru', color: 'orange', icon: 'M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0' },
+                          { tab: 'admin', label: 'Kelas', color: 'purple', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2' },
+                          { tab: 'subjects', label: 'Mapel', color: 'green', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5' }
+                        ].map(item => (
+                            <button key={item.tab} onClick={() => setActiveTab(item.tab as any)} className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all">
+                                <div className={`w-12 h-12 rounded-xl bg-${item.color}-50 dark:bg-${item.color}-900/20 text-${item.color}-600 dark:text-${item.color}-400 flex items-center justify-center`}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg>
+                                </div>
+                                <span className="font-bold text-[10px] text-gray-700 dark:text-gray-200 uppercase tracking-widest">{item.label}</span>
+                            </button>
+                        ))}
                     </div>
                 </div>
               );
-          case 'students':
-              return <StudentManager students={students} classes={offices} sessions={sessions} onAddStudent={(s) => saveData('students', s.id, s, setStudents, students)} onRemoveStudent={(id) => removeData('students', id, setStudents, students)} />;
-          case 'subjects':
-              return <SubjectManager subjects={subjects} teachers={teachers} classes={offices} onAddSubject={(s) => saveData('subjects', s.id, s, setSubjects, subjects)} onRemoveSubject={(id) => removeData('subjects', id, setSubjects, subjects)} />;
-          case 'teachers':
-              return <TeacherManager teachers={teachers} onAddTeacher={(t) => saveData('teachers', t.id, t, setTeachers, teachers)} onRemoveTeacher={(id) => removeData('teachers', id, setTeachers, teachers)} showToast={showToast} />;
-          case 'admin':
-              return <OfficeManager offices={offices} teachers={teachers} onAddOffice={(o) => saveData('offices', o.id, o, setOffices, offices)} onRemoveOffice={(id) => removeData('offices', id, setOffices, offices)} />;
-          default:
-              return null;
+          case 'students': return <StudentManager students={students} classes={offices} sessions={sessions} onBack={() => setActiveTab('data_menu')} onAddStudent={(s) => saveData('students', s.id, s)} onRemoveStudent={(id) => remove(ref(db!, `students/${id}`))} />;
+          case 'subjects': return <SubjectManager subjects={subjects} teachers={teachers} classes={offices} onBack={() => setActiveTab('data_menu')} onAddSubject={(s) => saveData('subjects', s.id, s)} onRemoveSubject={(id) => remove(ref(db!, `subjects/${id}`))} />;
+          case 'teachers': return <TeacherManager teachers={teachers} sessions={sessions} onBack={() => setActiveTab('data_menu')} onAddTeacher={(t) => saveData('teachers', t.id, t)} onRemoveTeacher={(id) => remove(ref(db!, `teachers/${id}`))} showToast={showToast} />;
+          case 'admin': return <OfficeManager offices={offices} teachers={teachers} onBack={() => setActiveTab('data_menu')} onAddOffice={(o) => saveData('offices', o.id, o)} onRemoveOffice={(id) => remove(ref(db!, `offices/${id}`))} />;
+          default: return null;
       }
   };
-
-  const isDataActive = ['data_menu', 'students', 'teachers', 'admin', 'subjects'].includes(activeTab);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300 flex flex-col">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
-      
-      <Navbar 
-        user={currentUser}
-        currentLocation={currentLocation}
-        isOfflineMode={isOfflineMode}
-        isDarkMode={isDarkMode}
-        toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
-        onLogout={() => {
-            if (currentUser && db && !isOfflineMode) {
-               remove(ref(db, `active_users/${currentUser.id}`));
-            }
-            setCurrentUser(null);
-            setSelectedSubject(null);
-            localStorage.removeItem('geoattend_user');
-            showToast("Anda berhasil keluar", "info");
-        }}
-        onEditProfile={() => setIsProfileModalOpen(true)}
-      />
-
-      <main className="flex-1 max-w-md mx-auto w-full px-4 pt-6 pb-28">
-        {locationError && (
-            <div className="bg-red-50 text-red-700 p-3 rounded-xl text-xs font-medium border border-red-200 mb-4 flex items-center justify-between shadow-sm">
-                <span className="flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                    GPS Error: {locationError}
-                </span>
-                <button onClick={updateLocation} className="bg-white text-red-600 px-2 py-1 rounded border border-red-200 shadow-sm">Retry</button>
-            </div>
-        )}
-        <div className="animate-fade-in">{renderContent()}</div>
-      </main>
-
-      {isProfileModalOpen && <EditProfileModal user={currentUser} onSave={handleProfileUpdate} onCancel={() => setIsProfileModalOpen(false)} />}
-
-      {(currentUser.role === 'admin' || currentUser.role === 'teacher') && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border-t border-gray-200 dark:border-gray-700 px-6 py-2 pb-safe z-40 transition-colors duration-300">
-            <div className="max-w-md mx-auto flex justify-between items-center">
-                {currentUser.role === 'admin' && (
-                  <>
-                    <button onClick={() => { setActiveTab('checkin'); setSelectedSubject(null); }} className={`flex flex-col items-center gap-1 p-1 flex-1 transition-colors ${activeTab === 'checkin' ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'}`}>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={activeTab === 'checkin' ? 2 : 1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-                        <span className="text-[10px] font-medium">Dashboard</span>
-                    </button>
-                    <button onClick={() => setActiveTab('reports')} className={`flex flex-col items-center gap-1 p-1 flex-1 transition-colors ${activeTab === 'reports' ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'}`}>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={activeTab === 'reports' ? 2 : 1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                        <span className="text-[10px] font-medium">Laporan</span>
-                    </button>
-                    <button onClick={() => setActiveTab('data_menu')} className={`flex flex-col items-center gap-1 p-1 flex-1 transition-colors ${isDataActive ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'}`}>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isDataActive ? 2 : 1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>
-                        <span className="text-[10px] font-medium">Data</span>
-                    </button>
-                  </>
-                )}
-
-                {currentUser.role === 'teacher' && (
-                  <>
-                     <button onClick={() => { setActiveTab('checkin'); setSelectedSubject(null); }} className={`flex flex-col items-center gap-1 p-1 flex-1 transition-colors ${activeTab === 'checkin' ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'}`}>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={activeTab === 'checkin' ? 2 : 1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        <span className="text-[10px] font-medium">Jadwal</span>
-                    </button>
-                    <button onClick={() => setActiveTab('teacher_history')} className={`flex flex-col items-center gap-1 p-1 flex-1 transition-colors ${activeTab === 'teacher_history' ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'}`}>
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={activeTab === 'teacher_history' ? 2 : 1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                        <span className="text-[10px] font-medium">Riwayat</span>
-                    </button>
-                  </>
-                )}
-            </div>
-        </nav>
-      )}
+      <Navbar user={currentUser} appConfig={appConfig} onUpdateConfig={handleUpdateConfig} onLogout={() => { if (currentUser && db) remove(ref(db, `active_users/${currentUser.id}`)); setCurrentUser(null); localStorage.removeItem('geoattend_user'); }} onEditProfile={() => setIsProfileModalOpen(true)} />
+      <main className="flex-1 max-w-md mx-auto w-full px-4 pt-4 pb-28">{renderContent()}</main>
+      {isProfileModalOpen && <EditProfileModal user={currentUser} onSave={(u) => { setCurrentUser(u); localStorage.setItem('geoattend_user', JSON.stringify(u)); setIsProfileModalOpen(false); }} onCancel={() => setIsProfileModalOpen(false)} />}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border-t border-gray-100 dark:border-gray-700 px-6 py-2 pb-safe z-40">
+          <div className="max-w-md mx-auto flex justify-between items-center">
+              {[
+                { tab: 'checkin', label: 'Beranda', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+                ...(currentUser.role === 'admin' ? [
+                  { tab: 'reports', label: 'Laporan', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+                  { tab: 'data_menu', label: 'Data', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4' }
+                ] : [
+                  { tab: 'teacher_history', label: 'Riwayat', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' }
+                ])
+              ].map(item => (
+                  <button 
+                    key={item.tab} 
+                    onClick={() => setActiveTab(item.tab as any)}
+                    className={`flex flex-col items-center gap-1 transition-all ${activeTab === item.tab ? 'text-blue-600 dark:text-blue-400 scale-110' : 'text-gray-400'}`}
+                  >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
+                      </svg>
+                      <span className="text-[8px] font-black uppercase tracking-widest">{item.label}</span>
+                  </button>
+              ))}
+          </div>
+      </nav>
     </div>
   );
 };

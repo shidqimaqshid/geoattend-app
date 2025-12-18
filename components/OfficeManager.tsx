@@ -1,23 +1,30 @@
+
 import React, { useState } from 'react';
 import { Office, Coordinates, Teacher } from '../types';
 import { MapPicker } from './MapPicker';
 
 interface OfficeManagerProps {
   offices: Office[];
-  teachers: Teacher[]; // Received from App
+  teachers: Teacher[];
+  onBack: () => void;
   onAddOffice: (office: Office) => void;
   onRemoveOffice: (id: string) => void;
 }
 
-const GRADES = ["10", "11", "12"];
+const GRADES = [
+  "7 (SMP/MTs)", 
+  "8 (SMP/MTs)", 
+  "9 (SMP/MTs)", 
+  "10 (SMA/MA)", 
+  "11 (SMA/MA)", 
+  "12 (SMA/MA)"
+];
 
-export const OfficeManager: React.FC<OfficeManagerProps> = ({ offices, teachers, onAddOffice, onRemoveOffice }) => {
-  // State for UI control
+export const OfficeManager: React.FC<OfficeManagerProps> = ({ offices, teachers, onBack, onAddOffice, onRemoveOffice }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // Form State
   const [formData, setFormData] = useState<{
     name: string;
     grade: string;
@@ -26,7 +33,7 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({ offices, teachers,
     coordinates: Coordinates | null;
   }>({
     name: '',
-    grade: '10',
+    grade: GRADES[0],
     teacherId: '',
     address: '',
     coordinates: null
@@ -35,7 +42,7 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({ offices, teachers,
   const resetForm = () => {
     setFormData({
       name: '',
-      grade: '10',
+      grade: GRADES[0],
       teacherId: '',
       address: '',
       coordinates: null
@@ -51,7 +58,7 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({ offices, teachers,
   const handleEditClick = (office: Office) => {
     setFormData({
       name: office.name,
-      grade: office.grade || '10',
+      grade: office.grade || GRADES[0],
       teacherId: office.teacherId || '',
       address: office.address,
       coordinates: office.coordinates
@@ -68,6 +75,17 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({ offices, teachers,
     }));
     setShowMapPicker(false);
     setIsFormOpen(true);
+  };
+
+  const handleManualCoordChange = (field: 'latitude' | 'longitude', value: string) => {
+    const numValue = parseFloat(value);
+    setFormData(prev => ({
+      ...prev,
+      coordinates: {
+        latitude: field === 'latitude' ? numValue : (prev.coordinates?.latitude || 0),
+        longitude: field === 'longitude' ? numValue : (prev.coordinates?.longitude || 0)
+      }
+    }));
   };
 
   const handleSave = () => {
@@ -97,164 +115,102 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({ offices, teachers,
 
   return (
     <div className="relative min-h-full">
-      
-      {/* --- List of Classes --- */}
-      <div className="space-y-4">
+      {/* NATIVE STYLE HEADER */}
+      <div className="sticky top-0 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur-md z-30 py-4 -mx-4 px-4 flex items-center gap-4 border-b border-gray-100 dark:border-gray-800">
+          <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-800 dark:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+              </svg>
+          </button>
+          <div>
+              <h3 className="font-black text-lg text-gray-800 dark:text-white leading-none">Data Kelas</h3>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider mt-1">{offices.length} Kelas Aktif</p>
+          </div>
+      </div>
+
+      <div className="space-y-4 py-6 pb-24">
         {offices.map((office) => (
-            <div key={office.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative group">
+            <div key={office.id} className="bg-white dark:bg-gray-800 p-5 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 relative group transition-all">
                 <div className="flex justify-between items-start">
                     <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded">
-                                Class {office.grade || '?'}
+                        <div className="flex items-center gap-3 mb-2">
+                            <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg border border-blue-100 dark:border-blue-800">
+                                Grade {office.grade || '?'}
                             </span>
-                            <h4 className="font-bold text-gray-800 text-lg">{office.name}</h4>
+                            <h4 className="font-black text-gray-800 dark:text-white text-lg leading-tight">{office.name}</h4>
                         </div>
-                        <p className="text-sm text-gray-600 mb-2 flex items-center gap-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                            </svg>
-                            {office.teacher || 'Belum ada Wali Kelas'}
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 flex items-center gap-2">
+                            <span className="text-lg">👤</span>
+                            <span className="font-medium">{office.teacher || 'Belum ada Wali Kelas'}</span>
                         </p>
-                        <p className="text-xs text-gray-400 font-mono flex items-center gap-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
+                        <p className="text-[10px] text-gray-400 font-black uppercase tracking-tighter flex items-center gap-2 bg-gray-50 dark:bg-gray-900/50 p-2 rounded-xl border border-gray-100 dark:border-gray-800">
+                            <span className="text-blue-500">📍</span>
                             {office.coordinates.latitude.toFixed(5)}, {office.coordinates.longitude.toFixed(5)}
                         </p>
                     </div>
                 </div>
                 
-                <div className="mt-4 flex gap-2 border-t pt-3 border-gray-50">
-                    <button 
-                        onClick={() => handleEditClick(office)}
-                        className="flex-1 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-1"
-                    >
-                         Edit
-                    </button>
-                    <button 
-                        onClick={() => onRemoveOffice(office.id)}
-                        className="flex-1 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-1"
-                    >
-                        Remove
-                    </button>
+                <div className="mt-5 flex gap-2 border-t pt-4 border-gray-50 dark:border-gray-700">
+                    <button onClick={() => handleEditClick(office)} className="flex-1 py-3 text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl hover:bg-blue-100 transition-all active:scale-95">Edit Lokasi</button>
+                    <button onClick={() => onRemoveOffice(office.id)} className="flex-1 py-3 text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-xl hover:bg-red-100 transition-all active:scale-95">Hapus</button>
                 </div>
             </div>
         ))}
-
-        {offices.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-64 text-gray-400 bg-white rounded-xl border border-dashed">
-                <p>No classes added yet.</p>
-                <p className="text-sm">Tap the + button to add one.</p>
-            </div>
-        )}
+        {offices.length === 0 && <div className="text-center py-20 text-gray-400 font-bold">Belum ada data kelas terdaftar.</div>}
       </div>
 
-      <button 
-        onClick={handleAddNewClick}
-        className="fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 active:scale-90 transition-all flex items-center justify-center z-40"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-        </svg>
+      <button onClick={handleAddNewClick} className="fixed bottom-24 right-6 w-16 h-16 bg-blue-600 text-white rounded-2xl shadow-xl flex items-center justify-center z-40 hover:scale-110 active:scale-95 transition-all border-4 border-white dark:border-gray-900">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
       </button>
 
       {isFormOpen && !showMapPicker && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-0 sm:p-4">
-            <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl p-6 animate-fade-in-up">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-bold text-gray-800">{editingId ? 'Edit Class' : 'New Class'}</h3>
-                    <button onClick={() => setIsFormOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-t-[40px] sm:rounded-3xl shadow-2xl p-8 animate-fade-in-up max-h-[90vh] overflow-y-auto no-scrollbar">
+                <div className="flex justify-between items-center mb-8">
+                    <h3 className="text-2xl font-black text-gray-800 dark:text-white">{editingId ? 'Edit Kelas' : 'Kelas Baru'}</h3>
+                    <button onClick={() => setIsFormOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-red-500 transition-colors text-3xl">&times;</button>
                 </div>
-
-                <div className="space-y-4">
+                <div className="space-y-6">
                     <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Class Name</label>
-                        <input 
-                            value={formData.name}
-                            onChange={(e) => setFormData({...formData, name: e.target.value})}
-                            placeholder="e.g. Science 1"
-                            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
+                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Nama Kelas</label>
+                        <input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Contoh: 10 IPA 1" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" />
                     </div>
-
-                    <div className="flex gap-4">
-                        <div className="w-1/3">
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Grade</label>
-                            <select 
-                                value={formData.grade}
-                                onChange={(e) => setFormData({...formData, grade: e.target.value})}
-                                className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                            >
-                                {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-                            </select>
-                        </div>
-                        
-                        <div className="flex-1">
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Wali Kelas</label>
-                            <select 
-                                value={formData.teacherId}
-                                onChange={(e) => setFormData({...formData, teacherId: e.target.value})}
-                                className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                            >
-                                <option value="">-- Pilih Wali Kelas --</option>
-                                {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                            </select>
-                            {teachers.length === 0 && <p className="text-xs text-red-500 mt-1">Data guru kosong. Tambahkan di menu Guru.</p>}
-                        </div>
-                    </div>
-
                     <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Location Center</label>
-                        <button 
-                            onClick={() => setShowMapPicker(true)}
-                            className={`w-full border rounded-lg px-4 py-3 flex items-center justify-between transition-colors ${
-                                formData.coordinates 
-                                ? 'border-green-200 bg-green-50 text-green-800' 
-                                : 'border-gray-300 bg-gray-50 text-gray-500'
-                            }`}
-                        >
-                            <span className="flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                {formData.coordinates ? 'Location Set' : 'Select on Map'}
-                            </span>
-                            {formData.coordinates && (
-                                <span className="text-xs font-mono bg-white px-2 py-1 rounded border border-green-200">
-                                    {formData.coordinates.latitude.toFixed(4)}, {formData.coordinates.longitude.toFixed(4)}
-                                </span>
-                            )}
+                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Tingkatan (Grade)</label>
+                        <select value={formData.grade} onChange={(e) => setFormData({...formData, grade: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none">
+                            {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Wali Kelas</label>
+                        <select value={formData.teacherId} onChange={(e) => setFormData({...formData, teacherId: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none">
+                            <option value="">-- Pilih Wali Kelas --</option>
+                            {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="p-6 bg-gray-50 dark:bg-gray-900/50 rounded-[32px] border border-gray-100 dark:border-gray-700">
+                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-4 ml-1">Titik Koordinat Lokasi</label>
+                        <div className="grid grid-cols-2 gap-4 mb-5">
+                            <div>
+                                <label className="text-[9px] text-gray-400 font-black uppercase ml-1">Latitude</label>
+                                <input type="number" step="any" value={formData.coordinates?.latitude || ''} onChange={(e) => handleManualCoordChange('latitude', e.target.value)} className="w-full text-xs py-3 px-4 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-xl placeholder-gray-400" placeholder="-6.123" />
+                            </div>
+                            <div>
+                                <label className="text-[9px] text-gray-400 font-black uppercase ml-1">Longitude</label>
+                                <input type="number" step="any" value={formData.coordinates?.longitude || ''} onChange={(e) => handleManualCoordChange('longitude', e.target.value)} className="w-full text-xs py-3 px-4 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-xl placeholder-gray-400" placeholder="106.123" />
+                            </div>
+                        </div>
+                        <button onClick={() => setShowMapPicker(true)} className="w-full py-4 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 font-black text-xs uppercase tracking-widest rounded-2xl border border-blue-100 dark:border-blue-800 flex items-center justify-center gap-2 active:scale-95 transition-all">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg>
+                            Pilih di Peta
                         </button>
                     </div>
                 </div>
-
-                <div className="mt-8">
-                    <button 
-                        onClick={handleSave}
-                        disabled={!formData.name || !formData.coordinates}
-                        className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                    >
-                        {editingId ? 'Save Changes' : 'Create Class'}
-                    </button>
-                </div>
+                <button onClick={handleSave} disabled={!formData.name || !formData.coordinates} className="w-full mt-8 bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl disabled:bg-gray-300 hover:bg-blue-700 transition-all uppercase tracking-widest">Simpan Data Kelas</button>
             </div>
         </div>
       )}
-
-      {showMapPicker && (
-        <MapPicker 
-            initialCenter={formData.coordinates} 
-            onConfirm={handleMapConfirm} 
-            onCancel={() => {
-                setShowMapPicker(false);
-                setIsFormOpen(true);
-            }} 
-        />
-      )}
-
+      {showMapPicker && <MapPicker initialCenter={formData.coordinates} onConfirm={handleMapConfirm} onCancel={() => { setShowMapPicker(false); setIsFormOpen(true); }} />}
     </div>
   );
 };

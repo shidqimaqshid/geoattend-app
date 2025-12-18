@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { Teacher } from '../types';
+import { Teacher, ClassSession } from '../types';
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { firebaseConfig, isFirebaseConfigured } from "../services/firebase";
@@ -8,6 +8,8 @@ import * as XLSX from 'xlsx';
 
 interface TeacherManagerProps {
   teachers: Teacher[];
+  sessions: ClassSession[];
+  onBack: () => void;
   onAddTeacher: (teacher: Teacher) => void;
   onRemoveTeacher: (id: string) => void;
   showToast?: (msg: string, type: 'success' | 'error' | 'info') => void;
@@ -15,6 +17,8 @@ interface TeacherManagerProps {
 
 export const TeacherManager: React.FC<TeacherManagerProps> = ({ 
   teachers, 
+  sessions,
+  onBack,
   onAddTeacher, 
   onRemoveTeacher,
   showToast = (msg, type) => alert(msg) 
@@ -23,15 +27,14 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [importProgress, setImportProgress] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [formData, setFormData] = useState({ 
-      name: '', 
-      nip: '', 
-      email: '', 
-      password: '', 
-      photoUrl: '' 
-  });
+  const [formData, setFormData] = useState({ name: '', nip: '', email: '', password: '', photoUrl: '' });
+
+  const filteredTeachers = teachers.filter(t => 
+    t.name.toLowerCase().includes(searchQuery.toLowerCase()) || t.nip.includes(searchQuery)
+  );
 
   const resetForm = () => {
     setFormData({ name: '', nip: '', email: '', password: '', photoUrl: '' });
@@ -40,19 +43,10 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
     setImportProgress('');
   };
 
-  const handleAddNewClick = () => {
-      resetForm();
-      setIsFormOpen(true);
-  };
+  const handleAddNewClick = () => { resetForm(); setIsFormOpen(true); };
 
   const handleEditClick = (teacher: Teacher) => {
-      setFormData({ 
-          name: teacher.name, 
-          nip: teacher.nip,
-          email: teacher.email || '',
-          password: teacher.password || '', 
-          photoUrl: teacher.photoUrl || '' 
-      });
+      setFormData({ name: teacher.name, nip: teacher.nip, email: teacher.email || '', password: teacher.password || '', photoUrl: teacher.photoUrl || '' });
       setEditingId(teacher.id);
       setIsFormOpen(true);
   };
@@ -61,9 +55,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, photoUrl: reader.result as string }));
-      };
+      reader.onloadend = () => setFormData(prev => ({ ...prev, photoUrl: reader.result as string }));
       reader.readAsDataURL(file);
     }
   };
@@ -79,332 +71,196 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
     let finalId = editingId;
 
     if (!editingId && isFirebaseConfigured) {
-        // Use a secondary app to create user without logging out the admin
         const secondaryAppName = "SecondaryApp-" + Date.now();
         const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
         const secondaryAuth = getAuth(secondaryApp);
-
         try {
             const userCredential = await createUserWithEmailAndPassword(secondaryAuth, formData.email, formData.password);
             finalId = userCredential.user.uid; 
-            await signOut(secondaryAuth); // Sign out from secondary immediately
+            await signOut(secondaryAuth);
         } catch (error: any) {
-            console.error("Auth Creation Error:", error);
             let msg = "Gagal membuat akun.";
             if (error.code === 'auth/email-already-in-use') msg = "Email sudah terdaftar.";
-            else if (error.code === 'auth/weak-password') msg = "Password terlalu lemah (min 6 karakter).";
-            
+            else if (error.code === 'auth/weak-password') msg = "Password lemah.";
             showToast(`Error: ${msg}`, "error");
-            await deleteApp(secondaryApp); // Clean up
+            await deleteApp(secondaryApp);
             setIsSubmitting(false);
             return;
-        } finally {
-            await deleteApp(secondaryApp); // Clean up in success case too
-        }
-    } else if (!editingId) {
-        finalId = Date.now().toString();
-    }
+        } finally { await deleteApp(secondaryApp); }
+    } else if (!editingId) { finalId = Date.now().toString(); }
 
-    const newTeacher: Teacher = {
-      id: finalId!,
-      name: formData.name,
-      nip: formData.nip || '-',
-      email: formData.email,
-      password: formData.password,
-      photoUrl: formData.photoUrl
-    };
-
-    onAddTeacher(newTeacher);
+    onAddTeacher({ id: finalId!, name: formData.name, nip: formData.nip || '-', email: formData.email, password: formData.password, photoUrl: formData.photoUrl });
     resetForm();
     setIsFormOpen(false);
     showToast(editingId ? "Data guru diperbarui" : "Guru baru berhasil ditambahkan", "success");
   };
 
-  // --- EXCEL HANDLERS ---
-
   const handleDownloadTemplate = () => {
-      const templateData = [
-          { "Nama Lengkap": "Budi Santoso", "NIP": "19800101", "Email": "budi@guru.com", "Password": "password123" },
-          { "Nama Lengkap": "Siti Aminah", "NIP": "19850505", "Email": "siti@guru.com", "Password": "password123" }
-      ];
-      const ws = XLSX.utils.json_to_sheet(templateData);
+      const ws = XLSX.utils.json_to_sheet([{ "Nama Lengkap": "", "NIP": "", "Email": "", "Password": "" }]);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Template Guru");
-      XLSX.writeFile(wb, "Template_Data_Guru.xlsx");
+      XLSX.utils.book_append_sheet(wb, ws, "Template");
+      XLSX.writeFile(wb, "Template_Guru.xlsx");
   };
 
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-
       const reader = new FileReader();
-      
       reader.onload = async (evt) => {
-          const bstr = evt.target?.result;
-          const wb = XLSX.read(bstr, { type: 'binary' });
-          const wsname = wb.SheetNames[0];
-          const ws = wb.Sheets[wsname];
-          const data = XLSX.utils.sheet_to_json(ws);
-
-          if (data.length === 0) {
-              showToast("File Excel kosong.", "error");
-              return;
-          }
-
-          setImportProgress(`Memproses ${data.length} data... Mohon tunggu.`);
+          const wb = XLSX.read(evt.target?.result, { type: 'binary' });
+          const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+          if (data.length === 0) { showToast("File kosong.", "error"); return; }
+          setImportProgress(`Memproses ${data.length} data...`);
           setIsSubmitting(true);
-
-          let successCount = 0;
-          let failCount = 0;
-          let secondaryApp: any = null;
-          let secondaryAuth: any = null;
-
-          // Initialize secondary app once for the loop if online
-          if (isFirebaseConfigured) {
-               const secondaryAppName = "SecondaryApp-Import-" + Date.now();
-               secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
-               secondaryAuth = getAuth(secondaryApp);
-          }
-
+          let success = 0, fail = 0;
+          let secondaryApp = isFirebaseConfigured ? initializeApp(firebaseConfig, "Import-" + Date.now()) : null;
+          let secondaryAuth = secondaryApp ? getAuth(secondaryApp) : null;
           try {
             for (const row of data as any[]) {
-                const name = row["Nama Lengkap"];
-                const nip = row["NIP"] ? String(row["NIP"]) : '-';
-                const email = row["Email"];
-                const password = row["Password"] ? String(row["Password"]) : '123456';
-
-                if (name && email && password) {
-                    try {
-                        let finalId = `imported_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                        
-                        // Create User in Firebase Auth if online
-                        if (isFirebaseConfigured && secondaryAuth) {
-                            try {
-                                const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-                                finalId = userCredential.user.uid;
-                                // We don't need to sign out inside the loop, just delete app at the end
-                            } catch (authError: any) {
-                                console.error(`Failed to create auth for ${email}:`, authError.message);
-                                failCount++;
-                                continue; // Skip saving to DB if Auth fails
-                            }
-                        }
-
-                        // Add to DB via Parent Callback
-                        const newTeacher: Teacher = {
-                            id: finalId,
-                            name,
-                            nip,
-                            email,
-                            password
-                        };
-                        onAddTeacher(newTeacher);
-                        successCount++;
-                    } catch (err) {
-                        console.error(err);
-                        failCount++;
+                const name = row["Nama Lengkap"], nip = row["NIP"] || '-', email = row["Email"], pass = row["Password"] || '123456';
+                if (name && email) {
+                    let finalId = `imp_${Date.now()}_${Math.random()}`;
+                    if (secondaryAuth) {
+                        try {
+                            const uc = await createUserWithEmailAndPassword(secondaryAuth, email, pass);
+                            finalId = uc.user.uid;
+                        } catch { fail++; continue; }
                     }
-                } else {
-                    failCount++;
-                }
+                    onAddTeacher({ id: finalId, name, nip, email, password: pass });
+                    success++;
+                } else fail++;
             }
           } finally {
-              // Clean up secondary app
-              if (secondaryApp) {
-                  await deleteApp(secondaryApp);
-              }
+              if (secondaryApp) await deleteApp(secondaryApp);
               setIsSubmitting(false);
               setImportProgress('');
-              if (fileInputRef.current) fileInputRef.current.value = ""; 
-              
-              if (successCount > 0) {
-                  showToast(`Import Selesai. Sukses: ${successCount}, Gagal: ${failCount}`, "success");
-              } else {
-                  showToast(`Import Gagal. Pastikan format Excel benar dan email belum terdaftar.`, "error");
-              }
+              showToast(`Import Selesai. Sukses: ${success}, Gagal: ${fail}`, success > 0 ? "success" : "error");
           }
       };
-      
       reader.readAsBinaryString(file);
+  };
+
+  // FUNGSI UNTUK MENGHITUNG STATISTIK GURU
+  const getTeacherStats = (teacherId: string) => {
+      const tSessions = sessions.filter(s => s.teacherId === teacherId);
+      const hadir = tSessions.filter(s => s.teacherStatus === 'PRESENT').length;
+      const izin = tSessions.filter(s => ['PERMISSION', 'SICK'].includes(s.teacherStatus)).length;
+      const alpha = tSessions.filter(s => s.teacherStatus === 'ABSENT').length;
+      return { hadir, izin, alpha };
   };
 
   return (
     <div className="relative min-h-full">
-      {/* Header Info */}
-      <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div>
-           <h3 className="font-bold text-blue-900">Data Guru</h3>
-           <p className="text-xs text-blue-600">Total: {teachers.length} Guru</p>
-           {importProgress && <p className="text-xs font-bold text-orange-600 animate-pulse mt-1">{importProgress}</p>}
+      {/* NATIVE STYLE HEADER */}
+      <div className="sticky top-0 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur-md z-30 py-4 -mx-4 px-4 flex items-center gap-4 border-b border-gray-100 dark:border-gray-800">
+          <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-800 dark:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+              </svg>
+          </button>
+          <div>
+              <h3 className="font-black text-lg text-gray-800 dark:text-white leading-none">Manajemen Guru</h3>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider mt-1">{teachers.length} Guru Terdaftar</p>
+          </div>
+      </div>
+
+      <div className="py-4 space-y-4 transition-colors">
+        <div className="relative">
+            <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari berdasarkan nama atau NIP..." className="w-full pl-11 pr-4 py-3.5 text-sm rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" />
+            <span className="absolute left-4 top-4 text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            </span>
         </div>
-        
-        {/* Import/Export Buttons */}
-        <div className="flex gap-2">
-            <button 
-                onClick={handleDownloadTemplate}
-                disabled={isSubmitting}
-                className="flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold hover:bg-green-200 transition-colors disabled:opacity-50"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                Template
+
+        <div className="flex justify-end gap-2">
+            <button onClick={handleDownloadTemplate} className="p-3 bg-white dark:bg-gray-800 text-green-600 dark:text-green-400 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 active:scale-95 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             </button>
-            <label className={`flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-200 transition-colors cursor-pointer ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                {isSubmitting ? 'Importing...' : 'Import Excel'}
-                <input 
-                    type="file" 
-                    accept=".xlsx, .xls" 
-                    className="hidden" 
-                    ref={fileInputRef}
-                    onChange={handleImportExcel}
-                    disabled={isSubmitting}
-                />
+            <label className="p-3 bg-blue-600 text-white rounded-2xl shadow-sm cursor-pointer active:scale-95 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} disabled={isSubmitting} />
             </label>
         </div>
       </div>
 
-      {/* Teacher List */}
-      <div className="space-y-4">
-        {teachers.map((teacher) => (
-          <div key={teacher.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative group">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden shrink-0 border border-gray-100 bg-orange-100">
-                {teacher.photoUrl ? (
-                    <img src={teacher.photoUrl} alt={teacher.name} className="w-full h-full object-cover" />
-                ) : (
-                    <span className="text-orange-600 font-bold text-lg">{(teacher.name || '??').substring(0, 2).toUpperCase()}</span>
-                )}
+      <div className="space-y-4 pb-24">
+        {filteredTeachers.map((teacher) => {
+          const stats = getTeacherStats(teacher.id);
+          return (
+            <div key={teacher.id} className="bg-white dark:bg-gray-800 p-5 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 relative group animate-fade-in transition-all">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 border border-gray-100 dark:border-gray-700 bg-orange-50 dark:bg-orange-900/30 shadow-inner">
+                  {teacher.photoUrl ? <img src={teacher.photoUrl} className="w-full h-full object-cover" /> : <span className="text-orange-600 dark:text-orange-300 font-black text-xl">{teacher.name.substring(0, 2).toUpperCase()}</span>}
+                </div>
+                <div className="overflow-hidden flex-1">
+                  <h4 className="font-black text-gray-800 dark:text-white text-lg truncate leading-tight">{teacher.name}</h4>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mt-1">NIP: {teacher.nip}</p>
+                  
+                  {/* STATISTICS BADGES */}
+                  <div className="flex gap-2 mt-3">
+                      <div className="bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-lg border border-green-100 dark:border-green-800 flex flex-col items-center min-w-[45px]">
+                          <span className="text-[8px] font-black text-green-600 dark:text-green-400 uppercase">Hadir</span>
+                          <span className="text-xs font-black text-green-700 dark:text-green-300">{stats.hadir}</span>
+                      </div>
+                      <div className="bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded-lg border border-yellow-100 dark:border-yellow-800 flex flex-col items-center min-w-[45px]">
+                          <span className="text-[8px] font-black text-yellow-600 dark:text-yellow-400 uppercase">Izin</span>
+                          <span className="text-xs font-black text-yellow-700 dark:text-yellow-300">{stats.izin}</span>
+                      </div>
+                      <div className="bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded-lg border border-red-100 dark:border-red-800 flex flex-col items-center min-w-[45px]">
+                          <span className="text-[8px] font-black text-red-600 dark:text-red-400 uppercase">Alpa</span>
+                          <span className="text-xs font-black text-red-700 dark:text-red-300">{stats.alpha}</span>
+                      </div>
+                  </div>
+                </div>
               </div>
-              <div className="overflow-hidden">
-                <h4 className="font-bold text-gray-800 text-lg truncate">{teacher.name}</h4>
-                <p className="text-xs text-gray-500">NIP: {teacher.nip}</p>
-                {teacher.email && (
-                    <p className="text-xs text-blue-500 flex items-center gap-1 mt-0.5">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                             <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                             <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                        </svg>
-                        {teacher.email}
-                    </p>
-                )}
+              <div className="flex gap-2 border-t pt-4 border-gray-50 dark:border-gray-700">
+                  <button onClick={() => handleEditClick(teacher)} className="flex-1 py-3 text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl hover:bg-blue-100 transition-all active:scale-95">Edit Data</button>
+                  <button onClick={() => onRemoveTeacher(teacher.id)} className="flex-1 py-3 text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-xl hover:bg-red-100 transition-all active:scale-95">Hapus</button>
               </div>
             </div>
-
-            <div className="mt-4 flex gap-2 border-t pt-3 border-gray-50">
-                <button 
-                    onClick={() => handleEditClick(teacher)}
-                    className="flex-1 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-1"
-                >
-                        Edit
-                </button>
-                <button 
-                    onClick={() => onRemoveTeacher(teacher.id)}
-                    className="flex-1 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-1"
-                >
-                    Remove
-                </button>
-            </div>
-          </div>
-        ))}
-
-        {teachers.length === 0 && (
-          <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-300">
-            <p className="text-gray-400 text-sm">Belum ada data guru.</p>
-          </div>
-        )}
+          );
+        })}
+        {filteredTeachers.length === 0 && <div className="text-center py-24 text-gray-400 font-bold">Data guru tidak ditemukan.</div>}
       </div>
 
-      {/* FAB */}
-      <button 
-        onClick={handleAddNewClick}
-        disabled={isSubmitting}
-        className="fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 active:scale-90 transition-all flex items-center justify-center z-40 disabled:opacity-50"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-        </svg>
+      <button onClick={handleAddNewClick} disabled={isSubmitting} className="fixed bottom-24 right-6 w-16 h-16 bg-blue-600 text-white rounded-2xl shadow-xl flex items-center justify-center z-40 hover:scale-110 active:scale-95 transition-all border-4 border-white dark:border-gray-900">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
       </button>
 
-      {/* Modal */}
       {isFormOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-0 sm:p-4">
-            <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl p-6 animate-fade-in-up max-h-[90vh] overflow-y-auto no-scrollbar">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-bold text-gray-800">{editingId ? 'Edit Guru' : 'Tambah Guru'}</h3>
-                    <button onClick={() => setIsFormOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-t-[40px] sm:rounded-3xl shadow-2xl p-8 animate-fade-in-up max-h-[90vh] overflow-y-auto no-scrollbar">
+                <div className="flex justify-between items-center mb-8">
+                    <h3 className="text-2xl font-black text-gray-800 dark:text-white">{editingId ? 'Edit Guru' : 'Tambah Guru Baru'}</h3>
+                    <button onClick={() => setIsFormOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-red-500 transition-colors text-3xl">&times;</button>
                 </div>
-
-                <div className="space-y-4">
-                    {/* Photo Upload */}
-                    <div className="flex flex-col items-center gap-3 mb-6">
-                         <div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden relative group">
-                            {formData.photoUrl ? (
-                                <img src={formData.photoUrl} alt="Preview" className="w-full h-full object-cover" />
-                            ) : (
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                            )}
-                            <label className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 flex items-center justify-center transition-all cursor-pointer">
-                                <span className="text-white text-xs font-bold opacity-0 group-hover:opacity-100">Ubah Foto</span>
-                                <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
-                            </label>
+                <div className="space-y-6">
+                    <div className="flex flex-col items-center gap-3">
+                         <div className="w-24 h-24 rounded-3xl bg-gray-50 dark:bg-gray-700 border-2 border-dashed border-gray-200 dark:border-gray-600 flex items-center justify-center overflow-hidden relative group">
+                            {formData.photoUrl ? <img src={formData.photoUrl} className="w-full h-full object-cover" /> : <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+                            <label className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 flex items-center justify-center transition-all cursor-pointer"><input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" /><span className="text-white text-[10px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100">Ubah Foto</span></label>
                          </div>
-                         <p className="text-xs text-gray-500">Klik foto untuk mengganti</p>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Nama Lengkap</label>
-                        <input 
-                            value={formData.name}
-                            onChange={(e) => setFormData({...formData, name: e.target.value})}
-                            placeholder="Contoh: Budi Santoso, S.Pd"
-                            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
-                            autoFocus
-                        />
                     </div>
                     <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">NIP (Opsional)</label>
-                        <input 
-                            value={formData.nip}
-                            onChange={(e) => setFormData({...formData, nip: e.target.value})}
-                            placeholder="Nomor Induk Pegawai"
-                            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
+                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Nama Lengkap</label>
+                        <input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Masukkan Nama Lengkap" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" />
                     </div>
                     <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
-                        <input 
-                            type="email"
-                            value={formData.email}
-                            onChange={(e) => setFormData({...formData, email: e.target.value})}
-                            placeholder="email@sekolah.com"
-                            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
-                            disabled={!!editingId} 
-                        />
-                        {editingId && <p className="text-[10px] text-gray-400">Email tidak dapat diubah di menu ini.</p>}
+                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">NIP</label>
+                        <input value={formData.nip} onChange={(e) => setFormData({...formData, nip: e.target.value})} placeholder="Nomor Induk Pegawai" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Email Aktif</label>
+                        <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="alamat@email.com" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" disabled={!!editingId} />
                     </div>
                     {!editingId && (
                         <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Password</label>
-                            <input 
-                                type="text"
-                                value={formData.password}
-                                onChange={(e) => setFormData({...formData, password: e.target.value})}
-                                placeholder="Password untuk login"
-                                className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
-                            />
+                            <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Password Baru</label>
+                            <input value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} placeholder="Min. 6 Karakter" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" />
                         </div>
                     )}
                 </div>
-
-                <button 
-                    onClick={handleSave}
-                    disabled={!formData.name || isSubmitting}
-                    className={`w-full mt-8 bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors ${isSubmitting ? 'cursor-wait opacity-70' : ''}`}
-                >
-                    {isSubmitting ? 'Memproses...' : (editingId ? 'Simpan Perubahan' : 'Tambah Guru & Buat Akun')}
-                </button>
+                <button onClick={handleSave} disabled={!formData.name || isSubmitting} className="w-full mt-10 bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl disabled:bg-gray-400 transition-all uppercase tracking-widest">{isSubmitting ? 'Memproses...' : (editingId ? 'Simpan Perubahan' : 'Daftarkan Guru')}</button>
             </div>
         </div>
       )}

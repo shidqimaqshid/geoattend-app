@@ -14,6 +14,9 @@ interface SessionDetailProps {
   onBack: () => void;
   isLocating: boolean;
   showToast: (msg: string, type: 'success' | 'error' | 'info') => void; // NEW
+  // Added mandatory config props
+  semester: 'Ganjil' | 'Genap';
+  schoolYear: string;
 }
 
 export const SessionDetail: React.FC<SessionDetailProps> = ({
@@ -26,7 +29,9 @@ export const SessionDetail: React.FC<SessionDetailProps> = ({
   onFinishSession,
   onBack,
   isLocating,
-  showToast
+  showToast,
+  semester,
+  schoolYear
 }) => {
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -149,6 +154,7 @@ export const SessionDetail: React.FC<SessionDetailProps> = ({
     }
     
     setIsSubmitting(true);
+    // Fix: Added mandatory semester and schoolYear to newSession literal
     const newSession: ClassSession = {
         id: session ? session.id : `${subject.id}_${todayStr}`,
         subjectId: subject.id,
@@ -164,7 +170,9 @@ export const SessionDetail: React.FC<SessionDetailProps> = ({
         attendancePhotoUrl: capturedImage,
         teacherCoordinates: currentLocation,
         studentAttendance: session ? session.studentAttendance : {},
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        semester,
+        schoolYear
     };
 
     onTeacherCheckIn(subject, newSession);

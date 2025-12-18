@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { Coordinates } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -9,42 +9,32 @@ interface SearchResult {
   coordinates: Coordinates;
 }
 
-// Search for a location using Gemini Maps Grounding to add to our "Database"
+// Search for a location using Gemini to add to our "Database"
 export const searchOfficeLocation = async (query: string): Promise<SearchResult | null> => {
   try {
+    // Fix: Using gemini-3-flash-preview with responseSchema for reliable structured location data.
+    // Guidelines forbid manual JSON parsing when using googleMaps tool.
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: `Find the precise location details for: ${query}. return the name, address, and coordinates.`,
+      model: "gemini-3-flash-preview",
+      contents: `Find the precise location details (name, full address, and coordinates) for: ${query}.`,
       config: {
-        tools: [{ googleMaps: {} }],
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            name: { type: Type.STRING },
+            address: { type: Type.STRING },
+            latitude: { type: Type.NUMBER },
+            longitude: { type: Type.NUMBER },
+          },
+          required: ["name", "address", "latitude", "longitude"],
+        },
       },
     });
 
-    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-
-    if (chunks && chunks.length > 0) {
-      // Look for a chunk with maps data
-      // Note: The structure varies, but we look for retrieval metadata usually or extract from text if grounding is robust
-      // However, specific lat/lng extraction from text is safer if grounding chunk is complex.
-      // Let's rely on the text response for parsing structured data if the tool was effective,
-      // or try to find metadata.
-      
-      // Since the API returns grounding metadata, we sometimes have to parse the text generated which uses that metadata.
-      // Let's ask Gemini to format it as JSON in the text to make it easy, even with the tool.
-      
-      const jsonResponse = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: `Based on this query "${query}", use Google Maps to find the place. 
-        Output ONLY a valid JSON object with keys: "name", "address", "latitude" (number), "longitude" (number). 
-        Do not use markdown code blocks.`,
-        config: {
-            tools: [{ googleMaps: {} }],
-        }
-      });
-      
-      const text = jsonResponse.text.trim().replace(/```json/g, '').replace(/```/g, '');
-      const data = JSON.parse(text);
-      
+    const data = JSON.parse(response.text || '{}');
+    
+    if (data.name && data.latitude && data.longitude) {
       return {
         name: data.name,
         address: data.address,
@@ -64,14 +54,16 @@ export const searchOfficeLocation = async (query: string): Promise<SearchResult 
 
 export const verifyLocationContext = async (coords: Coordinates): Promise<string> => {
     try {
+        // Fix: Use gemini-flash-lite-latest (a 2.5 series model alias) for Maps Grounding tasks as per coding guidelines.
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-flash-lite-latest",
             contents: `What place or building is located at latitude ${coords.latitude} and longitude ${coords.longitude}? Be concise.`,
             config: {
                 tools: [{ googleMaps: {} }],
             }
         });
-        return response.text;
+        // Note: groundingMetadata.groundingChunks contains map URLs which should be rendered in UI.
+        return response.text || "Could not verify location context.";
     } catch (error) {
         console.error("Verification error", error);
         return "Could not verify location context.";

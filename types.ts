@@ -1,4 +1,5 @@
 
+
 export interface Coordinates {
   latitude: number;
   longitude: number;
@@ -17,10 +18,10 @@ export interface User {
 export interface Teacher {
   id: string;
   name: string;
-  nip: string; // Nomor Induk Pegawai
+  nip: string;
   email?: string;
-  password?: string; // For simulation purposes
-  photoUrl?: string; // Base64 string of the photo
+  password?: string;
+  photoUrl?: string;
 }
 
 export interface Subject {
@@ -28,18 +29,18 @@ export interface Subject {
   name: string;
   teacherId?: string;
   teacherName?: string;
-  classId: string; // References Office.id
-  className: string; // References Office.name
-  day: string; // e.g. "Senin"
-  time: string; // e.g. "07:00 - 08:30"
+  classId: string;
+  className: string;
+  day: string;
+  time: string;
 }
 
 export interface Office {
   id: string;
-  name: string; // Class Name
-  grade?: string; // e.g. "10", "11", "12"
-  teacherId?: string; // Reference to Teacher ID
-  teacher?: string; // Homeroom Teacher Name (Display)
+  name: string;
+  grade?: string;
+  teacherId?: string;
+  teacher?: string;
   address: string;
   coordinates: Coordinates;
   addedAt: number;
@@ -48,63 +49,49 @@ export interface Office {
 export interface Student {
   id: string;
   name: string;
-  classId: string; // References Office.id
-  className: string; // References Office.name
-  attendanceCount: number; // Dummy counter for "Jumlah Absen"
-  photoUrl?: string; // Base64 string of the photo
+  classId: string;
+  className: string;
+  attendanceCount: number;
+  photoUrl?: string;
 }
 
-export interface AttendanceRecord {
-  id: string;
-  timestamp: number;
-  officeId: string;
-  officeName: string;
-  userCoordinates: Coordinates;
-  distance: number; // in meters
-  status: 'PRESENT' | 'REJECTED';
-}
-
-// NEW: Session for a specific subject on a specific date
 export interface ClassSession {
-  id: string; // ID Format: subjectId_YYYY-MM-DD
+  id: string;
   subjectId: string;
   subjectName: string;
   classId: string;
   className: string;
   teacherId: string;
-  date: string; // YYYY-MM-DD
-  startTime: number; // Timestamp check-in guru
-  teacherStatus: 'PRESENT' | 'ABSENT' | 'PERMISSION' | 'SICK'; // Added PERMISSION/SICK
-  
-  // Permission Fields
-  permissionProofUrl?: string; // Base64 or URL
+  date: string;
+  startTime: number;
+  teacherStatus: 'PRESENT' | 'ABSENT' | 'PERMISSION' | 'SICK';
+  semester: 'Ganjil' | 'Genap';
+  schoolYear: string;
+  permissionProofUrl?: string;
   permissionType?: 'image' | 'pdf';
   permissionNotes?: string;
   substituteTeacherId?: string;
   substituteTeacherName?: string;
-
   attendanceStatus?: 'ON_TIME' | 'LATE'; 
   lateMinutes?: number; 
-  attendancePhotoUrl?: string; // Selfie Evidence
+  attendancePhotoUrl?: string;
   teacherCoordinates?: Coordinates;
-  studentAttendance: Record<string, 'PRESENT' | 'SICK' | 'PERMISSION' | 'ALPHA'>; // studentId -> status
+  studentAttendance: Record<string, 'PRESENT' | 'SICK' | 'PERMISSION' | 'ALPHA'>;
   status?: 'ACTIVE' | 'COMPLETED'; 
 }
 
-export interface LocationState {
-  coords: Coordinates | null;
-  error: string | null;
-  loading: boolean;
+export interface AppConfig {
+  schoolYear: string;
+  semester: 'Ganjil' | 'Genap';
+  isSystemActive: boolean;
 }
 
-// UI Types
 export interface ToastMessage {
   id: string;
   type: 'success' | 'error' | 'info';
   message: string;
 }
 
-// NEW: Active User for Monitoring
 export interface ActiveUserSession {
   userId: string;
   name: string;
@@ -114,4 +101,15 @@ export interface ActiveUserSession {
   lastSeen: number;
   location?: Coordinates;
   photoUrl?: string;
+}
+
+// Added missing AttendanceRecord interface
+export interface AttendanceRecord {
+  id: string;
+  officeId: string;
+  officeName: string;
+  timestamp: number;
+  distance: number;
+  status: 'PRESENT' | 'ABSENT';
+  location: Coordinates;
 }
