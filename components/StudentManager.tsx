@@ -10,23 +10,22 @@ interface StudentManagerProps {
   onBack: () => void;
   onAddStudent: (student: Student) => void;
   onRemoveStudent: (id: string) => void;
+  showToast?: (msg: string, type: 'success' | 'error' | 'info') => void;
 }
 
 export const StudentManager: React.FC<StudentManagerProps> = ({ 
   students, 
   classes, 
-  sessions,
   onBack,
   onAddStudent, 
-  onRemoveStudent 
+  onRemoveStudent,
+  showToast
 }) => {
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
-  const [historyTab, setHistoryTab] = useState<'LOG' | 'SUBJECT'>('LOG'); 
   const [formData, setFormData] = useState({ name: '', classId: '', attendanceCount: 0, photoUrl: '' });
 
   const filteredStudents = students.filter(s => {
@@ -48,15 +47,6 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     setIsFormOpen(true);
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setFormData(prev => ({ ...prev, photoUrl: reader.result as string }));
-      reader.readAsDataURL(file);
-    }
-  };
-
   const handleSave = () => {
     if (!formData.name || !formData.classId) return;
     const selectedClass = classes.find(c => c.id === formData.classId);
@@ -72,6 +62,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Template Santri");
       XLSX.writeFile(wb, "Template_Santri.xlsx");
+      showToast?.("Template berhasil diunduh", "info");
   };
 
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,14 +84,14 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                   } else failCount++;
               }
           });
-          alert(`Import Selesai. Sukses: ${successCount}, Gagal: ${failCount}`);
+          if (successCount > 0) showToast?.(`Import Selesai! Berhasil: ${successCount}, Gagal: ${failCount}`, "success");
+          else showToast?.(`Import Gagal! Cek format Nama Kelas.`, "error");
       };
       reader.readAsBinaryString(file);
   };
 
   return (
     <div className="relative min-h-full">
-      {/* NATIVE STYLE HEADER */}
       <div className="sticky top-0 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur-md z-30 py-4 -mx-4 px-4 flex items-center gap-4 border-b border-gray-100 dark:border-gray-800">
           <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-800 dark:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -108,22 +99,22 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
               </svg>
           </button>
           <div>
-              <h3 className="font-black text-lg text-gray-800 dark:text-white leading-none">Data Santri</h3>
-              <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider mt-1">{students.length} Total Santri</p>
+              <h3 className="font-black text-lg text-gray-800 dark:text-white leading-none">Database Santri</h3>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider mt-1">{students.length} Santri Terdaftar</p>
           </div>
       </div>
 
       <div className="py-4 space-y-3">
         <div className="relative">
-            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari santri..." className="w-full pl-11 pr-4 py-3 text-sm rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder-gray-400" />
-            <span className="absolute left-4 top-3 text-gray-400">
+            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari santri..." className="w-full pl-11 pr-4 py-4 text-sm rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder-gray-400" />
+            <span className="absolute left-4 top-4 text-gray-400">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </span>
         </div>
         
         <div className="flex justify-end gap-2 px-1">
-             <button onClick={handleDownloadTemplate} className="px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 border border-green-100 dark:border-green-800">Template</button>
-            <label className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 border border-blue-100 dark:border-blue-800 cursor-pointer">Import<input type="file" accept=".xlsx, .xls" className="hidden" ref={fileInputRef} onChange={handleImportExcel} /></label>
+             <button onClick={handleDownloadTemplate} className="px-4 py-2.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 border border-green-100 dark:border-green-800">Template Excel</button>
+            <label className="px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 border border-blue-100 dark:border-blue-800 cursor-pointer">Import Santri<input type="file" accept=".xlsx, .xls" className="hidden" ref={fileInputRef} onChange={handleImportExcel} /></label>
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar px-1">
@@ -134,26 +125,23 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
       <div className="space-y-4 pb-24">
         {filteredStudents.map((student) => (
-          <div key={student.id} className="bg-white dark:bg-gray-800 p-4 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 relative group animate-fade-in transition-all">
-            <div className="flex justify-between items-start">
-                <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 border border-gray-100 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/30">
-                        {student.photoUrl ? <img src={student.photoUrl} alt={student.name} className="w-full h-full object-cover" /> : <span className="text-blue-600 dark:text-blue-300 font-black text-xl">{(student.name || '?').charAt(0).toUpperCase()}</span>}
-                    </div>
-                    <div>
-                        <h4 className="font-black text-gray-800 dark:text-white text-lg leading-tight">{student.name}</h4>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-lg mt-1 inline-block">{student.className}</span>
-                    </div>
+          <div key={student.id} className="bg-white dark:bg-gray-800 p-5 rounded-[32px] shadow-sm border border-gray-100 dark:border-gray-700 relative group animate-fade-in transition-all">
+            <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 border border-gray-100 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/30">
+                    {student.photoUrl ? <img src={student.photoUrl} alt={student.name} className="w-full h-full object-cover" /> : <span className="text-blue-600 dark:text-blue-300 font-black text-xl">{(student.name || '?').charAt(0).toUpperCase()}</span>}
+                </div>
+                <div>
+                    <h4 className="font-black text-gray-800 dark:text-white text-lg leading-tight">{student.name}</h4>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-lg mt-1 inline-block">{student.className}</span>
                 </div>
             </div>
-            <div className="mt-4 flex gap-2 border-t pt-3 border-gray-50 dark:border-gray-700">
-                <button onClick={() => { setViewingStudent(student); setHistoryTab('LOG'); }} className="flex-1 py-3 text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 rounded-xl hover:bg-purple-100 transition-all active:scale-95">Riwayat</button>
+            <div className="mt-4 flex gap-2 border-t pt-4 border-gray-50 dark:border-gray-700">
                 <button onClick={() => handleEditClick(student)} className="flex-1 py-3 text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl hover:bg-blue-100 transition-all active:scale-95">Edit</button>
                 <button onClick={() => onRemoveStudent(student.id)} className="flex-1 py-3 text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-xl hover:bg-red-100 transition-all active:scale-95">Hapus</button>
             </div>
           </div>
         ))}
-        {filteredStudents.length === 0 && <div className="text-center py-20 text-gray-400 font-bold">Tidak ada santri ditemukan.</div>}
+        {filteredStudents.length === 0 && <div className="text-center py-20 text-gray-400 font-bold uppercase tracking-widest text-xs italic">Data santri kosong</div>}
       </div>
 
       <button onClick={handleAddNewClick} className="fixed bottom-24 right-6 w-16 h-16 bg-blue-600 text-white rounded-2xl shadow-xl hover:bg-blue-700 active:scale-90 transition-all flex items-center justify-center z-40 border-4 border-white dark:border-gray-900">
@@ -167,7 +155,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                 <div className="space-y-6">
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Nama Lengkap</label>
-                        <input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Masukkan nama santri" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" />
+                        <input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Nama Santri" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Pilih Kelas</label>

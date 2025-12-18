@@ -10,6 +10,7 @@ interface SubjectManagerProps {
   onBack: () => void;
   onAddSubject: (subject: Subject) => void;
   onRemoveSubject: (id: string) => void;
+  showToast?: (msg: string, type: 'success' | 'error' | 'info') => void;
 }
 
 const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
@@ -20,7 +21,8 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
   classes,
   onBack,
   onAddSubject, 
-  onRemoveSubject 
+  onRemoveSubject,
+  showToast
 }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -47,10 +49,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     setEditingId(null);
   };
 
-  const handleAddNewClick = () => {
-      resetForm();
-      setIsFormOpen(true);
-  };
+  const handleAddNewClick = () => { resetForm(); setIsFormOpen(true); };
 
   const handleEditClick = (subject: Subject) => {
       let start = '07:00', end = '08:30';
@@ -96,6 +95,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Template Mapel");
       XLSX.writeFile(wb, "Template_Mapel.xlsx");
+      showToast?.("Template jadwal diunduh", "info");
   };
 
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -118,14 +118,14 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                   } else failCount++;
               }
           });
-          alert(`Import Selesai. Sukses: ${successCount}, Gagal: ${failCount}`);
+          if (successCount > 0) showToast?.(`Berhasil mengimpor ${successCount} jadwal!`, "success");
+          else showToast?.(`Import gagal! Guru atau Kelas tidak ditemukan.`, "error");
       };
       reader.readAsBinaryString(file);
   };
 
   return (
     <div className="relative min-h-full">
-      {/* NATIVE STYLE HEADER */}
       <div className="sticky top-0 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur-md z-30 py-4 -mx-4 px-4 flex items-center gap-4 border-b border-gray-100 dark:border-gray-800">
           <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-800 dark:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -134,27 +134,25 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
           </button>
           <div>
               <h3 className="font-black text-lg text-gray-800 dark:text-white leading-none">Jadwal Pelajaran</h3>
-              <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider mt-1">{subjects.length} Mapel Terjadwal</p>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider mt-1">{subjects.length} Sesi Terdaftar</p>
           </div>
       </div>
 
-       <div className="py-4 space-y-3 transition-colors">
+       <div className="py-4 space-y-3">
         <div className="flex justify-end gap-2">
              <button onClick={handleDownloadTemplate} className="px-4 py-2.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-xl text-[10px] font-black uppercase tracking-wider border border-green-100 dark:border-green-800 transition-all active:scale-95">Template</button>
-            <label className="px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-xl text-[10px] font-black uppercase tracking-wider border border-blue-100 dark:border-blue-800 cursor-pointer transition-all active:scale-95">
-                Import <input type="file" accept=".xlsx, .xls" className="hidden" ref={fileInputRef} onChange={handleImportExcel} />
-            </label>
+            <label className="px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-xl text-[10px] font-black uppercase tracking-wider border border-blue-100 dark:border-blue-800 cursor-pointer transition-all active:scale-95">Import Jadwal<input type="file" accept=".xlsx, .xls" className="hidden" ref={fileInputRef} onChange={handleImportExcel} /></label>
         </div>
       </div>
 
       <div className="space-y-4 pb-24">
         {subjects.map((subject) => (
-          <div key={subject.id} className="bg-white dark:bg-gray-800 p-5 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 relative group animate-fade-in transition-all">
+          <div key={subject.id} className="bg-white dark:bg-gray-800 p-6 rounded-[32px] shadow-sm border border-gray-100 dark:border-gray-700 relative group animate-fade-in transition-all">
             <span className="text-[10px] font-black tracking-widest uppercase text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-2 py-1 rounded-lg border border-purple-100 dark:border-purple-800 mb-2 inline-block">{subject.day} • {subject.time}</span>
-            <h4 className="font-black text-gray-800 dark:text-white text-lg leading-tight">{subject.name}</h4>
-            <div className="flex flex-col gap-1.5 mt-3 text-sm text-gray-600 dark:text-gray-400">
-                 <div className="flex items-center gap-2"><span>🏫</span> <span className="font-bold">{subject.className}</span></div>
-                 <div className="flex items-center gap-2"><span>👤</span> <span className="font-medium">{subject.teacherName}</span></div>
+            <h4 className="font-black text-gray-800 dark:text-white text-lg leading-tight tracking-tight">{subject.name}</h4>
+            <div className="flex flex-col gap-1.5 mt-4 text-[11px] font-bold text-gray-600 dark:text-gray-400 uppercase tracking-tight">
+                 <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900/50 p-2 rounded-xl"><span>🏫</span> <span>{subject.className}</span></div>
+                 <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900/50 p-2 rounded-xl"><span>👤</span> <span>{subject.teacherName}</span></div>
             </div>
             <div className="mt-5 flex gap-2 border-t pt-4 border-gray-50 dark:border-gray-700">
                 <button onClick={() => handleEditClick(subject)} className="flex-1 py-3 text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl hover:bg-blue-100 transition-all active:scale-95">Edit</button>
@@ -162,7 +160,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
             </div>
           </div>
         ))}
-        {subjects.length === 0 && <div className="text-center py-20 text-gray-400 font-bold">Belum ada jadwal mengajar.</div>}
+        {subjects.length === 0 && <div className="text-center py-20 text-gray-400 font-bold uppercase text-[10px] tracking-widest italic">Belum ada jadwal</div>}
       </div>
 
       <button onClick={handleAddNewClick} className="fixed bottom-24 right-6 w-16 h-16 bg-blue-600 text-white rounded-2xl shadow-xl hover:bg-blue-700 flex items-center justify-center z-40 transition-all active:scale-90 border-4 border-white dark:border-gray-900">
@@ -172,36 +170,22 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
       {isFormOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-0 sm:p-4">
             <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-t-[40px] sm:rounded-3xl shadow-2xl p-8 animate-fade-in-up">
-                <div className="flex justify-between items-center mb-8"><h3 className="text-2xl font-black text-gray-800 dark:text-white">{editingId ? 'Edit Mapel' : 'Tambah Mapel'}</h3><button onClick={() => setIsFormOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-red-500 text-3xl transition-colors">&times;</button></div>
-                <div className="space-y-6 max-h-[65vh] overflow-y-auto no-scrollbar pb-4 px-1">
+                <div className="flex justify-between items-center mb-8"><h3 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">Tambah Jadwal</h3><button onClick={() => setIsFormOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-red-500 text-3xl transition-colors">&times;</button></div>
+                <div className="space-y-6 max-h-[60vh] overflow-y-auto no-scrollbar pb-4">
                     <div>
-                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Nama Mata Pelajaran</label>
-                        <input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Contoh: Matematika" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" />
+                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Mata Pelajaran</label>
+                        <input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Nama Mapel" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" />
                     </div>
                     <div>
-                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Pilih Kelas</label>
-                        <select value={formData.classId} onChange={(e) => setFormData({...formData, classId: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none"><option value="">-- Pilih Kelas --</option>{classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Guru Pengampu</label>
+                        <select value={formData.teacherId} onChange={(e) => setFormData({...formData, teacherId: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none appearance-none">{teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
                     </div>
                     <div>
-                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Pilih Guru Pengampu</label>
-                        <select value={formData.teacherId} onChange={(e) => setFormData({...formData, teacherId: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none"><option value="">-- Pilih Guru --</option>{teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
-                    </div>
-                    <div className="p-5 bg-gray-50 dark:bg-gray-900/30 rounded-[32px] border border-gray-100 dark:border-gray-700">
-                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-3 ml-1">Jadwal Pertemuan</label>
-                        <select value={formData.day} onChange={(e) => setFormData({...formData, day: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-4 py-3 text-sm mb-4 outline-none">{DAYS.map(d => <option key={d} value={d}>{d}</option>)}</select>
-                        <div className="flex gap-3">
-                            <div className="flex-1">
-                                <span className="text-[9px] font-black text-gray-400 uppercase ml-1">Mulai</span>
-                                <input type="time" value={formData.startTime} onChange={(e) => setFormData({...formData, startTime: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-4 py-3 text-sm" />
-                            </div>
-                            <div className="flex-1">
-                                <span className="text-[9px] font-black text-gray-400 uppercase ml-1">Selesai</span>
-                                <input type="time" value={formData.endTime} onChange={(e) => setFormData({...formData, endTime: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-4 py-3 text-sm" />
-                            </div>
-                        </div>
+                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Pilih Hari</label>
+                        <select value={formData.day} onChange={(e) => setFormData({...formData, day: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none appearance-none">{DAYS.map(d => <option key={d} value={d}>{d}</option>)}</select>
                     </div>
                 </div>
-                <button onClick={handleSave} disabled={!formData.name || !formData.classId || !formData.teacherId} className="w-full mt-8 bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl disabled:bg-gray-300 transition-all uppercase tracking-widest">Simpan Mapel</button>
+                <button onClick={handleSave} disabled={!formData.name || !formData.classId} className="w-full mt-8 bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl disabled:bg-gray-300 transition-all uppercase tracking-widest">Simpan Jadwal</button>
             </div>
         </div>
       )}

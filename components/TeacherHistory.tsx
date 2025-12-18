@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Subject, ClassSession, Teacher } from '../types';
 import { getFormattedDate, getIndonesianDay } from '../utils/dateUtils';
@@ -10,6 +11,9 @@ interface TeacherHistoryProps {
 
 export const TeacherHistory: React.FC<TeacherHistoryProps> = ({ teacher, subjects, sessions }) => {
   const [expandedSubjectId, setExpandedSubjectId] = useState<string | null>(null);
+
+  // Safety check
+  if (!teacher) return null;
 
   // Filter subjects owned by this teacher
   const mySubjects = subjects.filter(s => s.teacherId === teacher.id);
