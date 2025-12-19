@@ -8,7 +8,7 @@ interface NavbarProps {
   onUpdateConfig: (config: AppConfig) => void;
   onLogout: () => void;
   onEditProfile: () => void;
-  onOpenSettings: () => void; // New prop for triggering settings modal from App.tsx
+  onOpenSettings: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
@@ -28,14 +28,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   if (!user) return null;
 
   return (
-    <header className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm sticky top-0 z-50 border-b border-gray-100 dark:border-gray-700">
+    <header className={`bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm sticky top-0 z-50 border-b border-gray-100 dark:border-gray-700 ${user.role === 'admin' ? 'md:hidden' : ''}`}>
         <div className="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-green-50 dark:bg-green-900/20 rounded-xl flex items-center justify-center p-1.5 border border-green-100 dark:border-green-800">
                   <img src="/logo.png" className="w-full h-full object-contain" onError={(e) => { e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3652/3652191.png'; }} />
               </div>
               <div>
-                <h1 className="text-sm font-black text-gray-800 dark:text-white leading-tight uppercase tracking-tight">SiAbsen Barkah</h1>
+                <h1 className="text-sm font-black text-gray-800 dark:text-white leading-none uppercase tracking-tight">SiAbsen Barkah</h1>
                 <div className="flex items-center gap-2 text-[8px] font-black text-gray-400 uppercase tracking-widest mt-0.5">
                    <span className={appConfig.isSystemActive ? "text-green-500" : "text-red-500"}>{appConfig.isSystemActive ? "Aktif" : "Nonaktif"}</span>
                    <span className="opacity-50">•</span>

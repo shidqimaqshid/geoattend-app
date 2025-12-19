@@ -148,6 +148,12 @@ const App: React.FC = () => {
       }
   };
 
+  const handleLogout = () => {
+    if (currentUser && db) remove(ref(db, `active_users/${currentUser.id}`)); 
+    setCurrentUser(null); 
+    localStorage.removeItem('geoattend_user');
+  };
+
   const renderContent = () => {
       if (!currentUser) return null;
 
@@ -184,11 +190,11 @@ const App: React.FC = () => {
           case 'data_menu':
               return (
                 <div className="space-y-8 animate-fade-in">
-                    <div className="text-center">
+                    <div className="text-center md:text-left">
                         <h2 className="text-2xl font-black text-gray-800 dark:text-white uppercase tracking-tight">Pusat Data Master</h2>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] mt-1">Pondok Pesantren Al-Barkah</p>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] mt-1">Kelola Seluruh Informasi Pondok</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                         {[ 
                           { tab: 'students', label: 'Santri', color: 'blue', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
                           { tab: 'teachers', label: 'Guru', color: 'orange', icon: 'M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0' },
@@ -237,15 +243,63 @@ const App: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-300 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-300 flex flex-col md:flex-row">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
-      <Navbar user={currentUser} appConfig={appConfig} onUpdateConfig={handleUpdateConfig} onLogout={() => { if (currentUser && db) remove(ref(db, `active_users/${currentUser.id}`)); setCurrentUser(null); localStorage.removeItem('geoattend_user'); }} onEditProfile={() => setIsProfileModalOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} />
-      
-      <main className="flex-1 max-w-md mx-auto w-full px-4 pt-6 pb-28 overflow-x-hidden">
-        {renderContent()}
-      </main>
 
-      {/* MODALS RENDERED AT ROOT TO AVOID POSITIONING BUGS */}
+      {/* DESKTOP SIDEBAR - Hidden on Mobile */}
+      {currentUser.role === 'admin' && (
+        <aside className="hidden md:flex w-72 h-screen sticky top-0 bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 flex-col py-8 px-6 z-50">
+           <div className="flex items-center gap-4 mb-10 px-2">
+              <div className="w-10 h-10 bg-green-50 dark:bg-green-900/20 rounded-xl flex items-center justify-center p-1.5 border border-green-100 dark:border-green-800">
+                  <img src="/logo.png" className="w-full h-full object-contain" />
+              </div>
+              <h1 className="text-sm font-black text-gray-800 dark:text-white uppercase tracking-tighter leading-none">SiAbsen<br/>Al-Barkah</h1>
+           </div>
+
+           <nav className="flex-1 space-y-1">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 px-2">Menu Utama</p>
+              {navItems.map(item => (
+                <button key={item.tab} onClick={() => setActiveTab(item.tab as any)} className={`w-full flex items-center gap-4 px-4 py-4 rounded-[20px] transition-all group ${activeTab === item.tab || (item.tab === 'data_menu' && ['students','teachers','admin','subjects'].includes(activeTab)) ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-600'}`}>
+                   <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${activeTab === item.tab ? 'scale-110' : ''} transition-transform`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={activeTab === item.tab ? 2.5 : 2} d={item.icon} /></svg>
+                   <span className="text-xs font-black uppercase tracking-widest">{item.label}</span>
+                </button>
+              ))}
+              
+              <div className="pt-8 space-y-1">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 px-2">Sistem</p>
+                <button onClick={() => setIsSettingsOpen(true)} className="w-full flex items-center gap-4 px-4 py-4 rounded-[20px] text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-600 transition-all">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  <span className="text-xs font-black uppercase tracking-widest">Pengaturan</span>
+                </button>
+                <button onClick={handleLogout} className="w-full flex items-center gap-4 px-4 py-4 rounded-[20px] text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                  <span className="text-xs font-black uppercase tracking-widest">Keluar</span>
+                </button>
+              </div>
+           </nav>
+
+           <div className="mt-auto p-4 bg-gray-50 dark:bg-gray-800/50 rounded-[28px] border border-gray-100 dark:border-gray-800 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl overflow-hidden shadow-sm bg-white shrink-0">
+                  {currentUser.photoUrl ? <img src={currentUser.photoUrl} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center font-black text-blue-600">{currentUser.name.charAt(0)}</div>}
+              </div>
+              <div className="overflow-hidden">
+                <p className="text-[11px] font-black text-gray-800 dark:text-white truncate uppercase">{currentUser.name}</p>
+                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">{currentUser.role}</p>
+              </div>
+           </div>
+        </aside>
+      )}
+
+      {/* MAIN WRAPPER */}
+      <div className="flex-1 flex flex-col w-full">
+        <Navbar user={currentUser} appConfig={appConfig} onUpdateConfig={handleUpdateConfig} onLogout={handleLogout} onEditProfile={() => setIsProfileModalOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} />
+        
+        <main className={`flex-1 w-full mx-auto px-4 pt-6 pb-28 md:pb-10 overflow-x-hidden ${currentUser.role === 'admin' ? 'max-w-6xl' : 'max-w-md'}`}>
+          {renderContent()}
+        </main>
+      </div>
+
+      {/* MODALS RENDERED AT ROOT */}
       {isProfileModalOpen && <EditProfileModal user={currentUser} onSave={(u) => { setCurrentUser(u); localStorage.setItem('geoattend_user', JSON.stringify(u)); setIsProfileModalOpen(false); showToast("Profil diperbarui", "success"); }} onCancel={() => setIsProfileModalOpen(false)} />}
       
       {isSettingsOpen && (
@@ -282,10 +336,11 @@ const App: React.FC = () => {
           </div>
       )}
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-100 dark:border-gray-800 px-6 py-4 pb-safe z-40">
+      {/* MOBILE BOTTOM NAV - Hidden on Desktop */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-100 dark:border-gray-800 px-6 py-4 pb-safe z-40">
           <div className={`max-w-md mx-auto grid ${navItems.length === 3 ? 'grid-cols-3' : 'grid-cols-2'} gap-4`}>
               {navItems.map(item => (
-                  <button key={item.tab} onClick={() => setActiveTab(item.tab as any)} className={`flex flex-col items-center justify-center py-2 px-2 rounded-2xl transition-all ${activeTab === item.tab ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'text-gray-400'}`}>
+                  <button key={item.tab} onClick={() => setActiveTab(item.tab as any)} className={`flex flex-col items-center justify-center py-2 px-2 rounded-2xl transition-all ${activeTab === item.tab || (item.tab === 'data_menu' && ['students','teachers','admin','subjects'].includes(activeTab)) ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'text-gray-400'}`}>
                       <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 mb-1 ${activeTab === item.tab ? 'scale-110' : 'scale-100'} transition-transform`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={activeTab === item.tab ? 2.5 : 2} d={item.icon} />
                       </svg>
