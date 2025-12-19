@@ -140,7 +140,6 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
       reader.readAsBinaryString(file);
   };
 
-  // FUNGSI UNTUK MENGHITUNG STATISTIK GURU
   const getTeacherStats = (teacherId: string) => {
       const tSessions = sessions.filter(s => s.teacherId === teacherId);
       const hadir = tSessions.filter(s => s.teacherStatus === 'PRESENT').length;
@@ -166,7 +165,7 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
 
       <div className="py-4 space-y-4 transition-colors">
         <div className="relative">
-            <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari berdasarkan nama atau NIP..." className="w-full pl-11 pr-4 py-3.5 text-sm rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" />
+            <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari berdasarkan nama atau NIP..." className="w-full pl-11 pr-4 py-3.5 text-sm rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400 shadow-inner" />
             <span className="absolute left-4 top-4 text-gray-400">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </span>
@@ -196,7 +195,6 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
                   <h4 className="font-black text-gray-800 dark:text-white text-lg truncate leading-tight">{teacher.name}</h4>
                   <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mt-1">NIP: {teacher.nip}</p>
                   
-                  {/* STATISTICS BADGES */}
                   <div className="flex gap-2 mt-3">
                       <div className="bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-lg border border-green-100 dark:border-green-800 flex flex-col items-center min-w-[45px]">
                           <span className="text-[8px] font-black text-green-600 dark:text-green-400 uppercase">Hadir</span>
@@ -228,39 +226,39 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({
       </button>
 
       {isFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-0 sm:p-4">
-            <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-t-[40px] sm:rounded-3xl shadow-2xl p-8 animate-fade-in-up max-h-[90vh] overflow-y-auto no-scrollbar">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[32px] shadow-2xl p-8 animate-fade-in-up max-h-[90vh] overflow-y-auto no-scrollbar border border-white/20">
                 <div className="flex justify-between items-center mb-8">
-                    <h3 className="text-2xl font-black text-gray-800 dark:text-white">{editingId ? 'Edit Guru' : 'Tambah Guru Baru'}</h3>
-                    <button onClick={() => setIsFormOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-red-500 transition-colors text-3xl">&times;</button>
+                    <h3 className="text-2xl font-black text-gray-800 dark:text-white leading-tight">{editingId ? 'Edit Guru' : 'Tambah Guru Baru'}</h3>
+                    <button onClick={() => setIsFormOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-red-500 transition-colors text-3xl leading-none">&times;</button>
                 </div>
                 <div className="space-y-6">
                     <div className="flex flex-col items-center gap-3">
                          <div className="w-24 h-24 rounded-3xl bg-gray-50 dark:bg-gray-700 border-2 border-dashed border-gray-200 dark:border-gray-600 flex items-center justify-center overflow-hidden relative group">
                             {formData.photoUrl ? <img src={formData.photoUrl} className="w-full h-full object-cover" /> : <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
-                            <label className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 flex items-center justify-center transition-all cursor-pointer"><input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" /><span className="text-white text-[10px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100">Ubah Foto</span></label>
+                            <label className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 flex items-center justify-center transition-all cursor-pointer shadow-inner"><input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" /><span className="text-white text-[10px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100">Ubah Foto</span></label>
                          </div>
                     </div>
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Nama Lengkap</label>
-                        <input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Masukkan Nama Lengkap" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" />
+                        <input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Masukkan Nama Lengkap" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400 shadow-inner" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">NIP</label>
-                        <input value={formData.nip} onChange={(e) => setFormData({...formData, nip: e.target.value})} placeholder="Nomor Induk Pegawai" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" />
+                        <input value={formData.nip} onChange={(e) => setFormData({...formData, nip: e.target.value})} placeholder="Nomor Induk Pegawai" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400 shadow-inner" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Email Aktif</label>
-                        <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="alamat@email.com" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" disabled={!!editingId} />
+                        <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="alamat@email.com" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400 shadow-inner" disabled={!!editingId} />
                     </div>
                     {!editingId && (
                         <div>
                             <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Password Baru</label>
-                            <input value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} placeholder="Min. 6 Karakter" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" />
+                            <input value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} placeholder="Min. 6 Karakter" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400 shadow-inner" />
                         </div>
                     )}
                 </div>
-                <button onClick={handleSave} disabled={!formData.name || isSubmitting} className="w-full mt-10 bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl disabled:bg-gray-400 transition-all uppercase tracking-widest">{isSubmitting ? 'Memproses...' : (editingId ? 'Simpan Perubahan' : 'Daftarkan Guru')}</button>
+                <button onClick={handleSave} disabled={!formData.name || isSubmitting} className="w-full mt-10 bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl disabled:bg-gray-400 transition-all uppercase tracking-widest leading-none">{isSubmitting ? 'Memproses...' : (editingId ? 'Simpan Perubahan' : 'Daftarkan Guru')}</button>
             </div>
         </div>
       )}

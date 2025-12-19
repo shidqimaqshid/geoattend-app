@@ -18,8 +18,6 @@ import { ToastContainer } from './components/Toast';
 import { db } from './services/firebase';
 import { ref, onValue, set, remove, onDisconnect } from 'firebase/database';
 
-const MAX_DISTANCE_METERS = 100; 
-
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => 
@@ -27,6 +25,7 @@ const App: React.FC = () => {
   );
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<Coordinates | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   
@@ -47,7 +46,6 @@ const App: React.FC = () => {
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null); 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // Safety routing based on role
   useEffect(() => {
     if (currentUser && currentUser.role === 'teacher') {
       const allowed = ['checkin', 'teacher_history'];
@@ -90,7 +88,6 @@ const App: React.FC = () => {
         const subscribe = (path: string, setter: (data: any[]) => void) => {
             return onValue(ref(db, path), (snapshot) => {
                 const val = snapshot.val();
-                // CRITICAL FIX: Ensure we filter out any null values that might exist in the database
                 setter(val ? Object.values(val).filter(v => v !== null) : []);
             });
         };
@@ -242,14 +239,49 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-300 flex flex-col">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
-      <Navbar user={currentUser} appConfig={appConfig} onUpdateConfig={handleUpdateConfig} onLogout={() => { if (currentUser && db) remove(ref(db, `active_users/${currentUser.id}`)); setCurrentUser(null); localStorage.removeItem('geoattend_user'); }} onEditProfile={() => setIsProfileModalOpen(true)} />
+      <Navbar user={currentUser} appConfig={appConfig} onUpdateConfig={handleUpdateConfig} onLogout={() => { if (currentUser && db) remove(ref(db, `active_users/${currentUser.id}`)); setCurrentUser(null); localStorage.removeItem('geoattend_user'); }} onEditProfile={() => setIsProfileModalOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} />
       
       <main className="flex-1 max-w-md mx-auto w-full px-4 pt-6 pb-28 overflow-x-hidden">
         {renderContent()}
       </main>
 
+      {/* MODALS RENDERED AT ROOT TO AVOID POSITIONING BUGS */}
       {isProfileModalOpen && <EditProfileModal user={currentUser} onSave={(u) => { setCurrentUser(u); localStorage.setItem('geoattend_user', JSON.stringify(u)); setIsProfileModalOpen(false); showToast("Profil diperbarui", "success"); }} onCancel={() => setIsProfileModalOpen(false)} />}
       
+      {isSettingsOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+              <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-[32px] shadow-2xl p-8 animate-fade-in-up max-h-[90vh] overflow-y-auto no-scrollbar border border-white/20">
+                  <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-lg font-black text-gray-800 dark:text-white uppercase tracking-tight">Pengaturan Sistem</h3>
+                      <button onClick={() => setIsSettingsOpen(false)} className="text-gray-400 hover:text-red-500 transition-colors text-3xl leading-none">&times;</button>
+                  </div>
+                  <div className="space-y-5">
+                      <div>
+                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Tahun Ajaran</label>
+                          <input value={appConfig.schoolYear} onChange={(e) => handleUpdateConfig({...appConfig, schoolYear: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:ring-1 focus:ring-green-500 dark:text-white" />
+                      </div>
+                      <div>
+                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Semester Aktif</label>
+                          <select value={appConfig.semester} onChange={(e) => handleUpdateConfig({...appConfig, semester: e.target.value as any})} className="w-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-2xl px-5 py-4 text-sm font-bold outline-none appearance-none dark:text-white shadow-inner">
+                              <option value="Ganjil">Semester Ganjil</option>
+                              <option value="Genap">Semester Genap</option>
+                          </select>
+                      </div>
+                      <div className="flex items-center justify-between p-5 bg-gray-50 dark:bg-gray-900 rounded-[24px] border border-gray-100 dark:border-gray-700">
+                           <div>
+                              <p className="text-[10px] font-black text-gray-700 dark:text-white uppercase tracking-widest leading-none">Aktivasi Absensi</p>
+                              <p className="text-[9px] text-gray-400 font-black uppercase mt-1">{appConfig.isSystemActive ? "Sistem Terbuka" : "Sistem Tertutup"}</p>
+                           </div>
+                           <button onClick={() => handleUpdateConfig({...appConfig, isSystemActive: !appConfig.isSystemActive})} className={`w-12 h-7 rounded-full p-1 flex transition-colors shadow-inner ${appConfig.isSystemActive ? 'bg-green-600' : 'bg-red-500'}`}>
+                              <div className={`bg-white w-5 h-5 rounded-full shadow transition-transform ${appConfig.isSystemActive ? 'translate-x-5' : ''}`}></div>
+                           </button>
+                      </div>
+                      <button onClick={() => setIsSettingsOpen(false)} className="w-full bg-gray-800 dark:bg-white text-white dark:text-black font-black py-5 rounded-2xl shadow-xl transition-all active:scale-95 uppercase text-[10px] tracking-widest">Selesai</button>
+                  </div>
+              </div>
+          </div>
+      )}
+
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-100 dark:border-gray-800 px-6 py-4 pb-safe z-40">
           <div className={`max-w-md mx-auto grid ${navItems.length === 3 ? 'grid-cols-3' : 'grid-cols-2'} gap-4`}>
               {navItems.map(item => (

@@ -8,13 +8,13 @@ interface NavbarProps {
   onUpdateConfig: (config: AppConfig) => void;
   onLogout: () => void;
   onEditProfile: () => void;
+  onOpenSettings: () => void; // New prop for triggering settings modal from App.tsx
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
-  user, appConfig, onUpdateConfig, onLogout, onEditProfile
+  user, appConfig, onLogout, onEditProfile, onOpenSettings
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -25,7 +25,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Safety check to prevent crash if for some reason user is null during render
   if (!user) return null;
 
   return (
@@ -47,7 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             
             <div className="flex items-center gap-1">
                 {user.role === 'admin' && (
-                    <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-gray-400 hover:text-green-600 transition-colors">
+                    <button onClick={onOpenSettings} className="p-2 text-gray-400 hover:text-green-600 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </button>
                 )}
@@ -68,40 +67,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
             </div>
         </div>
-
-        {isSettingsOpen && (
-            <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
-                <div className="bg-white dark:bg-gray-800 w-full max-sm rounded-t-[40px] sm:rounded-3xl shadow-2xl p-8 animate-fade-in-up">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-lg font-black text-gray-800 dark:text-white uppercase tracking-tight">Pengaturan Sistem</h3>
-                        <button onClick={() => setIsSettingsOpen(false)} className="text-gray-400 text-3xl">&times;</button>
-                    </div>
-                    <div className="space-y-5">
-                        <div>
-                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Tahun Ajaran</label>
-                            <input value={appConfig.schoolYear} onChange={(e) => onUpdateConfig({...appConfig, schoolYear: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:ring-1 focus:ring-green-500 dark:text-white" />
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Semester Aktif</label>
-                            <select value={appConfig.semester} onChange={(e) => onUpdateConfig({...appConfig, semester: e.target.value as any})} className="w-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-2xl px-5 py-4 text-sm font-bold outline-none appearance-none dark:text-white">
-                                <option value="Ganjil">Semester Ganjil</option>
-                                <option value="Genap">Semester Genap</option>
-                            </select>
-                        </div>
-                        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-700">
-                             <div>
-                                <p className="text-[10px] font-black text-gray-700 dark:text-white uppercase tracking-widest">Aktivasi Absensi</p>
-                                <p className="text-[9px] text-gray-400 font-black uppercase">{appConfig.isSystemActive ? "Sistem Terbuka" : "Sistem Tertutup"}</p>
-                             </div>
-                             <button onClick={() => onUpdateConfig({...appConfig, isSystemActive: !appConfig.isSystemActive})} className={`w-12 h-7 rounded-full p-1 flex transition-colors ${appConfig.isSystemActive ? 'bg-green-600' : 'bg-red-500'}`}>
-                                <div className={`bg-white w-5 h-5 rounded-full shadow transition-transform ${appConfig.isSystemActive ? 'translate-x-5' : ''}`}></div>
-                             </button>
-                        </div>
-                        <button onClick={() => setIsSettingsOpen(false)} className="w-full bg-gray-800 dark:bg-white text-white dark:text-black font-black py-5 rounded-2xl shadow-xl transition-all active:scale-95 uppercase text-[10px] tracking-widest">Simpan Konfigurasi</button>
-                    </div>
-                </div>
-            </div>
-        )}
     </header>
   );
 };

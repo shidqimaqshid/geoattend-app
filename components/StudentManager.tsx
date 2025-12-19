@@ -149,20 +149,23 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       </button>
 
       {isFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-0 sm:p-4">
-            <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-t-[40px] sm:rounded-3xl shadow-2xl p-8 animate-fade-in-up">
-                <div className="flex justify-between items-center mb-8"><h3 className="text-2xl font-black text-gray-800 dark:text-white">{editingId ? 'Edit Santri' : 'Tambah Santri'}</h3><button onClick={() => setIsFormOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-red-500 text-3xl transition-colors">&times;</button></div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[32px] shadow-2xl p-8 animate-fade-in-up border border-white/20">
+                <div className="flex justify-between items-center mb-8">
+                    <h3 className="text-2xl font-black text-gray-800 dark:text-white leading-none">{editingId ? 'Edit Santri' : 'Tambah Santri'}</h3>
+                    <button onClick={() => setIsFormOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-red-500 text-3xl leading-none transition-colors">&times;</button>
+                </div>
                 <div className="space-y-6">
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Nama Lengkap</label>
-                        <input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Nama Santri" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" />
+                        <input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Nama Santri" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400 shadow-inner" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Pilih Kelas</label>
-                        <select value={formData.classId} onChange={(e) => setFormData({...formData, classId: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 transition-all appearance-none outline-none"><option value="">-- Pilih Kelas --</option>{classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                        <select value={formData.classId} onChange={(e) => setFormData({...formData, classId: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 transition-all appearance-none outline-none shadow-inner"><option value="">-- Pilih Kelas --</option>{classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
                     </div>
                 </div>
-                <button onClick={handleSave} disabled={!formData.name || !formData.classId} className="w-full mt-10 bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl disabled:bg-gray-300 hover:bg-blue-700 transition-all uppercase tracking-widest">{editingId ? 'Simpan Perubahan' : 'Tambah Santri'}</button>
+                <button onClick={handleSave} disabled={!formData.name || !formData.classId} className="w-full mt-10 bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl disabled:bg-gray-300 hover:bg-blue-700 transition-all uppercase tracking-widest leading-none">{editingId ? 'Simpan Perubahan' : 'Tambah Santri'}</button>
             </div>
         </div>
       )}

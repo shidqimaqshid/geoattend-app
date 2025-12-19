@@ -164,26 +164,26 @@ export const OfficeManager: React.FC<OfficeManagerProps> = ({ offices, teachers,
       </button>
 
       {isFormOpen && !showMapPicker && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-0 sm:p-4">
-            <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-t-[40px] sm:rounded-3xl shadow-2xl p-8 animate-fade-in-up max-h-[90vh] overflow-y-auto no-scrollbar">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[32px] shadow-2xl p-8 animate-fade-in-up max-h-[90vh] overflow-y-auto no-scrollbar border border-white/20">
                 <div className="flex justify-between items-center mb-8">
-                    <h3 className="text-2xl font-black text-gray-800 dark:text-white">{editingId ? 'Edit Kelas' : 'Kelas Baru'}</h3>
-                    <button onClick={() => setIsFormOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-red-500 transition-colors text-3xl">&times;</button>
+                    <h3 className="text-2xl font-black text-gray-800 dark:text-white leading-tight">{editingId ? 'Edit Kelas' : 'Kelas Baru'}</h3>
+                    <button onClick={() => setIsFormOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-red-500 transition-colors text-3xl leading-none">&times;</button>
                 </div>
                 <div className="space-y-6">
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Nama Kelas</label>
-                        <input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Contoh: 10 IPA 1" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" />
+                        <input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Contoh: 10 IPA 1" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400 shadow-inner" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Tingkatan (Grade)</label>
-                        <select value={formData.grade} onChange={(e) => setFormData({...formData, grade: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none">
+                        <select value={formData.grade} onChange={(e) => setFormData({...formData, grade: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none shadow-inner">
                             {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
                         </select>
                     </div>
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Wali Kelas</label>
-                        <select value={formData.teacherId} onChange={(e) => setFormData({...formData, teacherId: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none">
+                        <select value={formData.teacherId} onChange={(e) => setFormData({...formData, teacherId: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none shadow-inner">
                             <option value="">-- Pilih Wali Kelas --</option>
                             {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>

@@ -168,24 +168,27 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
       </button>
 
       {isFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-0 sm:p-4">
-            <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-t-[40px] sm:rounded-3xl shadow-2xl p-8 animate-fade-in-up">
-                <div className="flex justify-between items-center mb-8"><h3 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">Tambah Jadwal</h3><button onClick={() => setIsFormOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-red-500 text-3xl transition-colors">&times;</button></div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[32px] shadow-2xl p-8 animate-fade-in-up border border-white/20">
+                <div className="flex justify-between items-center mb-8">
+                    <h3 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight leading-none">Tambah Jadwal</h3>
+                    <button onClick={() => setIsFormOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-red-500 text-3xl leading-none transition-colors">&times;</button>
+                </div>
                 <div className="space-y-6 max-h-[60vh] overflow-y-auto no-scrollbar pb-4">
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Mata Pelajaran</label>
-                        <input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Nama Mapel" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400" />
+                        <input value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Nama Mapel" className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder-gray-400 shadow-inner" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Guru Pengampu</label>
-                        <select value={formData.teacherId} onChange={(e) => setFormData({...formData, teacherId: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none appearance-none">{teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
+                        <select value={formData.teacherId} onChange={(e) => setFormData({...formData, teacherId: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none appearance-none shadow-inner">{teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
                     </div>
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Pilih Hari</label>
-                        <select value={formData.day} onChange={(e) => setFormData({...formData, day: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none appearance-none">{DAYS.map(d => <option key={d} value={d}>{d}</option>)}</select>
+                        <select value={formData.day} onChange={(e) => setFormData({...formData, day: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none appearance-none shadow-inner">{DAYS.map(d => <option key={d} value={d}>{d}</option>)}</select>
                     </div>
                 </div>
-                <button onClick={handleSave} disabled={!formData.name || !formData.classId} className="w-full mt-8 bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl disabled:bg-gray-300 transition-all uppercase tracking-widest">Simpan Jadwal</button>
+                <button onClick={handleSave} disabled={!formData.name || !formData.classId} className="w-full mt-8 bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl disabled:bg-gray-300 transition-all uppercase tracking-widest leading-none">Simpan Jadwal</button>
             </div>
         </div>
       )}
