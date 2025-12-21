@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getDatabase, Database } from "firebase/database";
+import { getDatabase, Database, ref, set } from "firebase/database";
 import { getAuth, Auth } from "firebase/auth";
 import { getMessaging, getToken, onMessage, Messaging } from 'firebase/messaging';
 
@@ -16,11 +16,8 @@ export const firebaseConfig = {
 };
 
 // VAPID Key untuk FCM Web Push
-// PENTING: Ganti dengan VAPID key dari Firebase Console
-// Cara dapat: Firebase Console → Project Settings → Cloud Messaging → Web Push certificates → Generate key pair
 const VAPID_KEY = "BEglwvoANMM3WQAk6jiaRaTFbXQXypttvbMq2Oe6HsnlNedUxLo8_1wtd4jZxkTXoJkuSTJpeTYYqzMJY-jR2xk";
 
-// Cek apakah user sudah mengubah konfigurasi default
 export const isFirebaseConfigured = firebaseConfig.projectId !== "GANTI_DENGAN_PROJECT_ID";
 
 let dbInstance: Database | null = null;
@@ -33,7 +30,6 @@ if (isFirebaseConfigured) {
     dbInstance = getDatabase(app);
     authInstance = getAuth(app);
     
-    // Initialize FCM (hanya di browser yang support)
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       try {
         messagingInstance = getMessaging(app);
@@ -65,21 +61,16 @@ export const requestNotificationPermission = async (): Promise<string | null> =>
       return null;
     }
 
-    // Cek apakah sudah ada permission
     if (Notification.permission === 'granted') {
-      // Langsung get token
       const token = await getToken(messagingInstance, { vapidKey: VAPID_KEY });
       console.log('FCM Token:', token);
       return token;
     }
 
-    // Request permission
     const permission = await Notification.requestPermission();
     
     if (permission === 'granted') {
       console.log('Notification permission granted.');
-      
-      // Get FCM token
       const token = await getToken(messagingInstance, { vapidKey: VAPID_KEY });
       console.log('FCM Token:', token);
       return token;
@@ -90,7 +81,6 @@ export const requestNotificationPermission = async (): Promise<string | null> =>
   } catch (error: any) {
     console.error('Error getting notification permission:', error.message);
     
-    // Jika error karena VAPID key belum diset
     if (error.message?.includes('VAPID') || error.message?.includes('vapid')) {
       console.error('❌ VAPID KEY BELUM DISET! Silakan generate VAPID key di Firebase Console.');
     }
@@ -112,7 +102,6 @@ export const onMessageListener = (): Promise<any> => {
     onMessage(messagingInstance, (payload) => {
       console.log('Message received in foreground:', payload);
       
-      // Tampilkan browser notification
       if (Notification.permission === 'granted' && payload.notification) {
         new Notification(payload.notification.title || 'GeoAttend', {
           body: payload.notification.body || '',
@@ -125,28 +114,28 @@ export const onMessageListener = (): Promise<any> => {
       resolve(payload);
     });
   });
-  /**
+};
+
+/**
  * Save FCM token to Firebase Realtime Database
  */
-  export const saveFCMToken = async (userId: string, token: string): Promise<void> => {
-    try {
-      if (!dbInstance) {
-        console.warn('Database not initialized');
-        return;
-      }
-  
-      const { ref, set } = await import('firebase/database');
-      const tokenRef = ref(dbInstance, `users/${userId}/fcmToken`);
-      
-      await set(tokenRef, {
-        token: token,
-        updatedAt: new Date().toISOString()
-      });
-      
-      console.log('FCM token saved successfully for user:', userId);
-    } catch (error: any) {
-      console.error('Error saving FCM token:', error.message);
-      throw error;
+export const saveFCMToken = async (userId: string, token: string): Promise<void> => {
+  try {
+    if (!dbInstance) {
+      console.warn('Database not initialized');
+      return;
     }
-  };
+
+    const tokenRef = ref(dbInstance, `users/${userId}/fcmToken`);
+    
+    await set(tokenRef, {
+      token: token,
+      updatedAt: new Date().toISOString()
+    });
+    
+    console.log('FCM token saved successfully for user:', userId);
+  } catch (error: any) {
+    console.error('Error saving FCM token:', error.message);
+    throw error;
+  }
 };
