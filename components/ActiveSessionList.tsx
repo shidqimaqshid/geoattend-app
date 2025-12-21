@@ -455,34 +455,44 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                         </span>
                       ) : (
                         'Kirim Pengajuan Izin'
-                      )}
-                    </button>
+                    )}
+                  </button>
                 </div>
+              </div>
             </div>
-          </div>
-      )}
+          )}
+        </div>
+
+        {/* Active Sessions List */}
+        <div className="space-y-4">
+          {activeSessions.map((session) => {
+            return (
+              <div key={session.id} className="session-card">
+                {/* Session content here */}
+                <div className="flex items-center gap-3">
+                  {session.location && (
+                    <a
+                      href={`https://www.google.com/maps?q=${session.location.latitude},${session.location.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-90 transition-all"
+                      title="Lihat Lokasi"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </a>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
-};                                        rel="noopener noreferrer" 
-                                        className="p-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-90 transition-all"
-                                        title="Lihat Lokasi"
-                                      >
-                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                          </svg>
-                                      </a>
-                                    )}
-                                </div>
-                            </div>
-                          );
-                        })
-                      )}
-                  </div>
-              </div>
-          </div>
-      );
-  }
+};
 
   // TEACHER VIEW
   const relevantSubjects = subjects.filter(subject => {
