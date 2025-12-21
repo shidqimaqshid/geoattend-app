@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Subject, Teacher, Office } from '../types';
 import * as XLSX from 'xlsx';
@@ -171,7 +170,9 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
             <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[32px] shadow-2xl p-8 animate-fade-in-up border border-white/20">
                 <div className="flex justify-between items-center mb-8">
-                    <h3 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight leading-none">Tambah Jadwal</h3>
+                    <h3 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight leading-none">
+                      {editingId ? 'Edit Jadwal' : 'Tambah Jadwal'}
+                    </h3>
                     <button onClick={() => setIsFormOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-red-500 text-3xl leading-none transition-colors">&times;</button>
                 </div>
                 <div className="space-y-6 max-h-[60vh] overflow-y-auto no-scrollbar pb-4">
@@ -181,14 +182,50 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                     </div>
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Guru Pengampu</label>
-                        <select value={formData.teacherId} onChange={(e) => setFormData({...formData, teacherId: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none appearance-none shadow-inner">{teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
+                        <select value={formData.teacherId} onChange={(e) => setFormData({...formData, teacherId: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none appearance-none shadow-inner">
+                          <option value="">Pilih Guru</option>
+                          {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Kelas</label>
+                        <select value={formData.classId} onChange={(e) => setFormData({...formData, classId: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none appearance-none shadow-inner">
+                          <option value="">Pilih Kelas</option>
+                          {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
                     </div>
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Pilih Hari</label>
-                        <select value={formData.day} onChange={(e) => setFormData({...formData, day: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none appearance-none shadow-inner">{DAYS.map(d => <option key={d} value={d}>{d}</option>)}</select>
+                        <select value={formData.day} onChange={(e) => setFormData({...formData, day: e.target.value})} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 focus:ring-2 focus:ring-blue-500 outline-none appearance-none shadow-inner">
+                          {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                    </div>
+                    
+                    {/* Jam Mulai & Selesai */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Jam Masuk</label>
+                        <input 
+                          type="time" 
+                          value={formData.startTime} 
+                          onChange={(e) => setFormData({...formData, startTime: e.target.value})} 
+                          className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-inner" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-gray-400 uppercase mb-2 ml-1">Jam Selesai</label>
+                        <input 
+                          type="time" 
+                          value={formData.endTime} 
+                          onChange={(e) => setFormData({...formData, endTime: e.target.value})} 
+                          className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-inner" 
+                        />
+                      </div>
                     </div>
                 </div>
-                <button onClick={handleSave} disabled={!formData.name || !formData.classId} className="w-full mt-8 bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl disabled:bg-gray-300 transition-all uppercase tracking-widest leading-none">Simpan Jadwal</button>
+                <button onClick={handleSave} disabled={!formData.name || !formData.classId || !formData.teacherId} className="w-full mt-8 bg-blue-600 text-white font-black py-5 rounded-2xl shadow-xl disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:text-gray-500 transition-all uppercase tracking-widest leading-none hover:bg-blue-700 active:scale-95">
+                  {editingId ? 'Update Jadwal' : 'Simpan Jadwal'}
+                </button>
             </div>
         </div>
       )}
