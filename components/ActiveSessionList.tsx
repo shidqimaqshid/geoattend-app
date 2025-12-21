@@ -398,65 +398,65 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                     </div>
 
                     <button 
-                      onClick={() => { 
-                        if (isSubmitting) return;
-                        
-                        if (!proofFile) { 
-                          showToast?.("Harap unggah bukti!", "error"); 
-                          return; 
-                        }
-                        if (!substituteId) { 
-                          showToast?.("Harap pilih guru pengganti!", "error"); 
-                          return; 
-                        } 
-                        if (!notes.trim()) {
-                          showToast?.("Harap isi alasan izin!", "error");
-                          return;
-                        }
-                        
-                        setIsSubmitting(true);
-                        
-                        const subTeacher = teachers.find(t => t.id === substituteId); 
-                        const sessionData: ClassSession = { 
-                          id: `${permissionSubject.id}_${todayStr}`, 
-                          subjectId: permissionSubject.id, 
-                          subjectName: permissionSubject.name, 
-                          classId: permissionSubject.classId, 
-                          className: permissionSubject.className, 
-                          teacherId: user.id, 
-                          date: todayStr, 
-                          startTime: Date.now(), 
-                          teacherStatus: 'PERMISSION', 
-                          permissionProofUrl: proofFile, 
-                          permissionType: proofType, 
-                          permissionNotes: notes.trim(), 
-                          substituteTeacherId: substituteId, 
-                          substituteTeacherName: subTeacher?.name || 'Unknown', 
-                          studentAttendance: {}, 
-                          status: 'ACTIVE', 
-                          semester, 
-                          schoolYear 
-                        }; 
-                        
-                        onPermissionRequest?.(permissionSubject, sessionData); 
-                        showToast?.("Pengajuan izin berhasil dikirim!", "success");
-                        resetPermissionForm();
-                      }} 
-                      disabled={!proofFile || !substituteId || !notes.trim() || isSubmitting}
-                      className="w-full bg-blue-600 text-white font-black py-5 rounded-[24px] shadow-xl transition-all hover:bg-blue-700 active:scale-95 disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-600 disabled:cursor-not-allowed uppercase text-xs tracking-widest"
-                    >
-                      {isSubmitting ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Mengirim...
-                        </span>
-                      ) : (
-                        'Kirim Pengajuan Izin'
-                    )}
-                  </button>
+  onClick={() => { 
+    if (isSubmitting) return;
+    
+    if (!proofFile) { 
+      showToast?.("Harap unggah bukti!", "error"); 
+      return; 
+    }
+    if (!substituteId) { 
+      showToast?.("Harap pilih guru pengganti!", "error"); 
+      return; 
+    } 
+    if (!notes.trim()) {
+      showToast?.("Harap isi alasan izin!", "error");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    const subTeacher = teachers.find(t => t.id === substituteId); 
+    const sessionData: ClassSession = { 
+      id: `${permissionSubject.id}_${todayStr}`, 
+      subjectId: permissionSubject.id, 
+      subjectName: permissionSubject.name, 
+      classId: permissionSubject.classId, 
+      className: permissionSubject.className, 
+      teacherId: user.id, 
+      date: todayStr, 
+      startTime: Date.now(), 
+      teacherStatus: 'PERMISSION', 
+      permissionProofUrl: proofFile, 
+      permissionType: proofType, 
+      permissionNotes: notes.trim(), 
+      substituteTeacherId: substituteId, 
+      substituteTeacherName: subTeacher?.name || 'Unknown', 
+      studentAttendance: {}, 
+      status: 'ACTIVE', 
+      semester, 
+      schoolYear 
+    }; 
+    
+    onPermissionRequest?.(permissionSubject, sessionData); 
+    showToast?.("Pengajuan izin berhasil dikirim!", "success");
+    resetPermissionForm();
+  }} 
+  disabled={!proofFile || !substituteId || !notes.trim() || isSubmitting}
+  className="w-full bg-blue-600 text-white font-black py-5 rounded-[24px] shadow-xl transition-all hover:bg-blue-700 active:scale-95 disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-600 disabled:cursor-not-allowed uppercase text-xs tracking-widest"
+>
+  {isSubmitting ? (
+    <span className="flex items-center justify-center gap-2">
+      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      Mengirim...
+    </span>
+  ) : (
+    'Kirim Pengajuan Izin'
+  )}
+</button>
                 </div>
               </div>
             </div>
