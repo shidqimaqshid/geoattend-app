@@ -125,4 +125,28 @@ export const onMessageListener = (): Promise<any> => {
       resolve(payload);
     });
   });
+  /**
+ * Save FCM token to Firebase Realtime Database
+ */
+  export const saveFCMToken = async (userId: string, token: string): Promise<void> => {
+    try {
+      if (!dbInstance) {
+        console.warn('Database not initialized');
+        return;
+      }
+  
+      const { ref, set } = await import('firebase/database');
+      const tokenRef = ref(dbInstance, `users/${userId}/fcmToken`);
+      
+      await set(tokenRef, {
+        token: token,
+        updatedAt: new Date().toISOString()
+      });
+      
+      console.log('FCM token saved successfully for user:', userId);
+    } catch (error: any) {
+      console.error('Error saving FCM token:', error.message);
+      throw error;
+    }
+  };
 };
