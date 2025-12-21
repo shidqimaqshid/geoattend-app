@@ -106,19 +106,23 @@ const App: React.FC = () => {
         unsubs.push(subscribe('active_users', setActiveUsers));
 
         if (currentUser?.id) {
-            const presenceRef = ref(db, `active_users/${currentUser.id}`);
-            const presenceData = {
-                userId: currentUser.id,
-                name: currentUser.name || 'User',
-                role: currentUser.role || 'teacher',
-                lastSeen: Date.now(),
-                photoUrl: currentUser.photoUrl || '',
-                ip: '192.168.1.1',
-                userAgent: navigator.userAgent || 'Unknown',
-                location: currentLocation || null
-            };
-            set(presenceRef, JSON.parse(JSON.stringify(presenceData)));
+          const presenceRef = ref(db, `active_users/${currentUser.id}`);
+          const presenceData = {
+            userId: currentUser.id,
+            name: currentUser.name || 'User',
+            role: currentUser.role || 'teacher',
+            lastSeen: Date.now(),
+            photoUrl: currentUser.photoUrl || '',
+            userAgent: navigator.userAgent || 'Unknown',
+            location: currentLocation || null
+          };
+          
+          try {
+            set(presenceRef, presenceData);
             onDisconnect(presenceRef).remove();
+          } catch (error) {
+            console.error('Error setting presence:', error);
+          }
         }
     }
     return () => unsubs.forEach(fn => fn());
@@ -140,20 +144,26 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (currentUser) {
-      requestNotificationPermission().then(token => {
-        if (token) {
-          saveFCMToken(currentUser.id, token);
-          showToast("Notifikasi diaktifkan! ✅", "success");
-        }
-      });
+      // Request permission with error handling
+      requestNotificationPermission()
+        .then(token => {
+          if (token) {
+            saveFCMToken(currentUser.id, token)
+              .catch(err => console.error('Error saving FCM token:', err));
+            showToast("Notifikasi diaktifkan! ✅", "success");
+          }
+        })
+        .catch(err => {
+          console.error('Notification permission error:', err);
+          // Jangan show error toast, karena bisa mengganggu UX
+        });
   
-      onMessageListener().then((payload: any) => {
-        if (payload?.notification?.title) {
-          showToast(payload.notification.title, "info");
-        }
-      }).catch(err => {
-        console.log('Message listener error:', err);
-      });
+      // Listen for messages (ini bukan Promise biasa, jadi jangan pakai .then)
+      const unsubscribe = onMessageListener();
+      
+      return () => {
+        // Cleanup if needed
+      };
     }
   }, [currentUser]);
   
@@ -164,39 +174,48 @@ const App: React.FC = () => {
   }, [currentUser, subjects, sessions]);
   
   useEffect(() => {
-    if (currentUser && currentUser.role === 'admin') {
-      const now = new Date();
-      const target = new Date();
-      target.setHours(17, 0, 0, 0);
-      
-      const msUntil5PM = target.getTime() - now.getTime();
-      
-      if (msUntil5PM > 0) {
-        const timeout = setTimeout(() => {
-          const todayStr = new Date().toISOString().split('T')[0];
-          const todaySessions = sessions.filter(s => s.date === todayStr);
-          
-          const summary = {
-            totalSessions: todaySessions.length,
-            present: todaySessions.filter(s => s.teacherStatus === 'PRESENT').length,
-            permission: todaySessions.filter(s => ['PERMISSION', 'SICK'].includes(s.teacherStatus)).length,
-            absent: todaySessions.filter(s => s.teacherStatus === 'ABSENT').length
-          };
-          
-          sendDailySummary(currentUser.id, summary);
-        }, msUntil5PM);
-        
-        return () => clearTimeout(timeout);
-      }
+    if (currentUser?.role !== 'admin') return;
+    
+    const now = new Date();
+    const target = new Date();
+    target.setHours(17, 0, 0, 0);
+    
+    // If already past 5 PM today, schedule for tomorrow
+    if (now >= target) {
+      target.setDate(target.getDate() + 1);
     }
-  }, [currentUser, sessions]);
+    
+    const msUntil5PM = target.getTime() - now.getTime();
+    
+    const timeout = setTimeout(() => {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todaySessions = sessions.filter(s => s.date === todayStr);
+      
+      const summary = {
+        totalSessions: todaySessions.length,
+        present: todaySessions.filter(s => s.teacherStatus === 'PRESENT').length,
+        permission: todaySessions.filter(s => ['PERMISSION', 'SICK'].includes(s.teacherStatus)).length,
+        absent: todaySessions.filter(s => s.teacherStatus === 'ABSENT').length
+      };
+      
+      sendDailySummary(currentUser.id, summary);
+    }, msUntil5PM);
+    
+    return () => clearTimeout(timeout);
+  }, [currentUser?.id]); // Remove sessions from deps
 
   const saveData = async (collectionName: string, id: string, data: any) => {
-    if (db) {
-        try {
-            await set(ref(db, `${collectionName}/${id}`), JSON.parse(JSON.stringify(data)));
-            showToast("Data diperbarui", "success");
-        } catch (e) { showToast("Gagal menyimpan data", "error"); }
+    if (!db) {
+      showToast("Database tidak tersedia", "error");
+      return;
+    }
+    
+    try {
+      await set(ref(db, `${collectionName}/${id}`), JSON.parse(JSON.stringify(data)));
+      showToast("Data diperbarui", "success");
+    } catch (e: any) { 
+      console.error('Save data error:', e);
+      showToast(`Gagal menyimpan: ${e.message}`, "error"); 
     }
   };
 
