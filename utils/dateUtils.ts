@@ -1,7 +1,8 @@
 
-export const getIndonesianDay = (date: Date): string => {
+export const getIndonesianDay = (date?: Date): string => {
   const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-  return days[date.getDay()];
+  const d = date || new Date();
+  return days[d.getDay()];
 };
 
 export const getFormattedDate = (date: Date): string => {
