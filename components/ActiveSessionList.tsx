@@ -35,11 +35,10 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 15000); // Update setiap 15 detik
+    const timer = setInterval(() => setNow(Date.now()), 15000);
     return () => clearInterval(timer);
   }, []);
 
-  // Filter user yang online (aktif dalam 3 menit terakhir)
   const onlineUsers = activeUsers.filter(u => u && u.lastSeen && (now - u.lastSeen) < 180000);
 
   const [permissionSubject, setPermissionSubject] = useState<Subject | null>(null);
@@ -47,27 +46,31 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
   const [proofType, setProofType] = useState<'image' | 'pdf'>('image');
   const [notes, setNotes] = useState('');
   const [substituteId, setSubstituteId] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleProofUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    // Validasi ukuran file (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       showToast?.("Ukuran file maksimal 5MB!", "error");
+      e.target.value = '';
       return;
     }
     
     setProofType(file.type.includes('pdf') ? 'pdf' : 'image');
     const reader = new FileReader();
     reader.onloadend = () => setProofFile(reader.result as string);
-    reader.onerror = () => showToast?.("Gagal membaca file!", "error");
+    reader.onerror = () => {
+      showToast?.("Gagal membaca file!", "error");
+      e.target.value = '';
+    };
     reader.readAsDataURL(file);
   };
 
   const teacherStats = (() => {
       if (!user || user.role !== 'teacher') return { hadir: 0, izin: 0, alpa: 0, total: 0 };
-      const mySessions = sessions.filter(s => s.teacherId === user.id);
+      const mySessions = sessions.filter(s => s.teacherId === user.id && s.date === todayStr);
       return {
           hadir: mySessions.filter(s => s.teacherStatus === 'PRESENT').length,
           izin: mySessions.filter(s => ['PERMISSION', 'SICK'].includes(s.teacherStatus)).length,
@@ -82,6 +85,7 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
     setProofType('image');
     setNotes('');
     setSubstituteId('');
+    setIsSubmitting(false);
   };
 
   if (!user) return null;
@@ -91,6 +95,8 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
       const todaySessions = sessions.filter(s => s.date === todayStr);
       const activeSessions = todaySessions.filter(s => s.status === 'ACTIVE');
       const completedSessions = todaySessions.filter(s => s.status === 'COMPLETED');
+      const onlineTeachers = onlineUsers.filter(u => u.role === 'teacher');
+      const onlineStudents = onlineUsers.filter(u => u.role === 'student');
       
       return (
           <div className="space-y-6 animate-fade-in">
@@ -111,7 +117,6 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                   </div>
               </div>
 
-              {/* Statistics Cards */}
               <div className="grid grid-cols-2 gap-4">
                   <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-6 rounded-[32px] shadow-sm text-white">
                       <p className="text-[9px] uppercase font-black tracking-widest mb-1 text-blue-200">Sesi Hari Ini</p>
@@ -121,11 +126,10 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                   <div className="bg-gradient-to-br from-green-600 to-green-700 p-6 rounded-[32px] shadow-sm text-white">
                       <p className="text-[9px] uppercase font-black tracking-widest mb-1 text-green-200">Online Now</p>
                       <p className="text-3xl font-black">{onlineUsers.length}</p>
-                      <p className="text-[8px] text-green-200 font-bold mt-1">{onlineUsers.filter(u => u.role === 'teacher').length} Guru • {onlineUsers.filter(u => u.role === 'student').length} Siswa</p>
+                      <p className="text-[8px] text-green-200 font-bold mt-1">{onlineTeachers.length} Guru • {onlineStudents.length} Siswa</p>
                   </div>
               </div>
 
-              {/* Online Staff */}
               <div className="bg-white dark:bg-gray-800 rounded-[32px] shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
                   <div className="p-5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30 flex justify-between items-center">
                       <h3 className="font-black text-[10px] uppercase tracking-widest text-gray-800 dark:text-white flex items-center gap-2">
@@ -152,7 +156,7 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                                               {u.photoUrl ? (
                                                 <img src={u.photoUrl} className="w-full h-full object-cover" alt={u.name}/>
                                               ) : (
-                                                <span className="font-black text-blue-600 uppercase">{u.name.charAt(0)}</span>
+                                                <span className="font-black text-blue-600 dark:text-blue-400 uppercase text-sm">{u.name.charAt(0)}</span>
                                               )}
                                           </div>
                                           <span className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></span>
@@ -195,22 +199,15 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
 
   // TEACHER VIEW
   const relevantSubjects = subjects.filter(subject => {
-      // Filter hanya jadwal hari ini
       if (subject.day !== currentDay) return false;
-      
-      // Filter hanya jadwal guru yang login
       if (user.role === 'teacher' && subject.teacherId !== user.id) return false;
-      
-      // Jangan tampilkan sesi yang sudah completed
       const session = sessions.find(s => s.id === `${subject.id}_${todayStr}`);
       if (session && session.status === 'COMPLETED') return false;
-      
       return true;
   });
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Profile Card */}
       <div className="bg-gradient-to-br from-green-700 to-emerald-900 rounded-[48px] p-8 text-white shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
           <div className="absolute bottom-0 left-0 w-24 h-24 bg-yellow-400/10 rounded-full -ml-12 -mb-12 blur-2xl"></div>
@@ -233,7 +230,6 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                   </div>
               </div>
               
-              {/* Stats */}
               <div className="grid grid-cols-3 gap-3">
                   <div className="bg-white/10 p-4 rounded-3xl backdrop-blur-md border border-white/10 text-center shadow-inner">
                       <p className="text-[8px] uppercase font-black text-green-200 mb-1">Hadir</p>
@@ -251,7 +247,6 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
           </div>
       </div>
 
-      {/* Header Section */}
       <div className="flex justify-between items-center px-2">
           <div>
             <h3 className="text-[11px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.15em]">Tugas Mengajar Hari Ini</h3>
@@ -260,7 +255,6 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
           <span className="text-[10px] font-black bg-white dark:bg-gray-800 px-4 py-1.5 rounded-full text-gray-600 dark:text-gray-400 border border-gray-100 dark:border-gray-800 shadow-sm uppercase">{currentTime} WIB</span>
       </div>
 
-      {/* Subject Cards */}
       <div className="space-y-4">
         {relevantSubjects.length === 0 ? (
             <div className="py-24 text-center text-gray-400 bg-white dark:bg-gray-800 rounded-[48px] border border-dashed border-gray-200 dark:border-gray-800">
@@ -302,7 +296,7 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                       <div className="flex gap-2">
                           <button 
                             onClick={() => onSelectSubject(subject)} 
-                            disabled={isPermission} 
+                            disabled={!!isPermission} 
                             className={`flex-1 py-4 rounded-[24px] font-black text-[10px] uppercase tracking-[0.1em] shadow-lg transition-all ${
                               isPermission 
                                 ? 'bg-gray-100 text-gray-400 dark:bg-gray-900 dark:text-gray-600 cursor-not-allowed' 
@@ -326,7 +320,6 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
         )}
       </div>
 
-      {/* Permission Modal */}
       {permissionSubject && (
           <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-md p-0 sm:p-4 animate-fade-in">
             <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-t-[48px] sm:rounded-[40px] shadow-2xl p-10 animate-fade-in-up max-h-[90vh] overflow-y-auto no-scrollbar">
@@ -335,20 +328,19 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                     <button 
                       onClick={resetPermissionForm} 
                       className="text-gray-400 hover:text-red-500 transition-colors text-3xl leading-none"
+                      disabled={isSubmitting}
                     >
                       &times;
                     </button>
                 </div>
                 
                 <div className="space-y-6">
-                    {/* Info Mata Pelajaran */}
                     <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-2xl border border-gray-100 dark:border-gray-700">
                       <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1">Mata Pelajaran</p>
                       <p className="font-black text-gray-800 dark:text-white">{permissionSubject.name}</p>
                       <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold mt-1">{permissionSubject.className} • {permissionSubject.time}</p>
                     </div>
 
-                    {/* Guru Pengganti */}
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2.5 ml-1">
                           Guru Pengganti <span className="text-red-500">*</span>
@@ -357,6 +349,7 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                           value={substituteId} 
                           onChange={(e) => setSubstituteId(e.target.value)} 
                           className="w-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-white rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500 appearance-none shadow-inner"
+                          disabled={isSubmitting}
                         >
                             <option value="">-- Pilih Guru Pengganti --</option>
                             {teachers.filter(t => t.id !== user.id).map(t => (
@@ -365,7 +358,6 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                         </select>
                     </div>
 
-                    {/* Upload Bukti */}
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2.5 ml-1">
                           Unggah Bukti (Foto/PDF) <span className="text-red-500">*</span>
@@ -375,6 +367,7 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                           accept="image/*,application/pdf" 
                           onChange={handleProofUpload} 
                           className="w-full text-[10px] text-gray-500 dark:text-gray-400 file:mr-3 file:py-3.5 file:px-5 file:rounded-2xl file:border-0 file:text-[9px] file:font-black file:bg-blue-600 file:text-white hover:file:bg-blue-700 transition-all cursor-pointer border border-gray-200 dark:border-gray-700 rounded-2xl" 
+                          disabled={isSubmitting}
                         />
                         <p className="text-[8px] text-gray-400 mt-2 ml-1">Maksimal 5MB • Format: JPG, PNG, PDF</p>
                         {proofFile && (
@@ -389,7 +382,6 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                         )}
                     </div>
 
-                    {/* Alasan */}
                     <div>
                         <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2.5 ml-1">
                           Alasan <span className="text-red-500">*</span>
@@ -400,14 +392,15 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                           className="w-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-2xl p-5 text-xs outline-none focus:ring-2 focus:ring-blue-500 dark:text-white shadow-inner resize-none" 
                           rows={4} 
                           placeholder="Tuliskan alasan izin Anda secara detail..."
+                          disabled={isSubmitting}
                         ></textarea>
                         <p className="text-[8px] text-gray-400 mt-2 ml-1">{notes.length} karakter</p>
                     </div>
 
-                    {/* Submit Button */}
                     <button 
                       onClick={() => { 
-                        // Validasi form
+                        if (isSubmitting) return;
+                        
                         if (!proofFile) { 
                           showToast?.("Harap unggah bukti!", "error"); 
                           return; 
@@ -420,6 +413,8 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                           showToast?.("Harap isi alasan izin!", "error");
                           return;
                         }
+                        
+                        setIsSubmitting(true);
                         
                         const subTeacher = teachers.find(t => t.id === substituteId); 
                         const sessionData: ClassSession = { 
@@ -447,10 +442,20 @@ export const ActiveSessionList: React.FC<ActiveSessionListProps> = ({
                         showToast?.("Pengajuan izin berhasil dikirim!", "success");
                         resetPermissionForm();
                       }} 
-                      disabled={!proofFile || !substituteId || !notes.trim()}
+                      disabled={!proofFile || !substituteId || !notes.trim() || isSubmitting}
                       className="w-full bg-blue-600 text-white font-black py-5 rounded-[24px] shadow-xl transition-all hover:bg-blue-700 active:scale-95 disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-600 disabled:cursor-not-allowed uppercase text-xs tracking-widest"
                     >
-                      Kirim Pengajuan Izin
+                      {isSubmitting ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Mengirim...
+                        </span>
+                      ) : (
+                        'Kirim Pengajuan Izin'
+                      )}
                     </button>
                 </div>
             </div>
