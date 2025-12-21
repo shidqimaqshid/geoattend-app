@@ -151,7 +151,10 @@ const App: React.FC = () => {
   const handleLogout = () => {
     if (currentUser && db) remove(ref(db, `active_users/${currentUser.id}`)); 
     setCurrentUser(null); 
+    setActiveTab('checkin'); // ← TAMBAHKAN INI
+    setSelectedSubject(null); // ← TAMBAHKAN INI
     localStorage.removeItem('geoattend_user');
+    showToast("Berhasil keluar", "info"); // ← TAMBAHKAN INI
   };
 
   const renderContent = () => {
