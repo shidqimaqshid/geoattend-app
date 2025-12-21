@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Coordinates, Office, Student, Teacher, Subject, ClassSession, User, ToastMessage, ActiveUserSession, AppConfig } from './types';
 import { getBrowserLocation, calculateDistance } from './utils/geo';
@@ -15,8 +14,15 @@ import { Reports } from './components/Reports';
 import { EditProfileModal } from './components/EditProfileModal';
 import { TeacherHistory } from './components/TeacherHistory';
 import { ToastContainer } from './components/Toast';
+import { NotificationBell } from './components/NotificationBell';
 import { db } from './services/firebase';
 import { ref, onValue, set, remove, onDisconnect } from 'firebase/database';
+import { requestNotificationPermission, saveFCMToken, onMessageListener } from './services/firebase';
+import { 
+  scheduleClassReminders, 
+  notifyAdminNewPermission,
+  sendDailySummary
+} from './services/notificationService';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -132,6 +138,59 @@ const App: React.FC = () => {
 
   useEffect(() => { if (currentUser) updateLocation(); }, [updateLocation, currentUser]);
 
+  useEffect(() => {
+    if (currentUser) {
+      requestNotificationPermission().then(token => {
+        if (token) {
+          saveFCMToken(currentUser.id, token);
+          showToast("Notifikasi diaktifkan! ✅", "success");
+        }
+      });
+  
+      onMessageListener().then((payload: any) => {
+        if (payload?.notification?.title) {
+          showToast(payload.notification.title, "info");
+        }
+      }).catch(err => {
+        console.log('Message listener error:', err);
+      });
+    }
+  }, [currentUser]);
+  
+  useEffect(() => {
+    if (currentUser && currentUser.role === 'teacher') {
+      scheduleClassReminders(subjects, sessions, currentUser);
+    }
+  }, [currentUser, subjects, sessions]);
+  
+  useEffect(() => {
+    if (currentUser && currentUser.role === 'admin') {
+      const now = new Date();
+      const target = new Date();
+      target.setHours(17, 0, 0, 0);
+      
+      const msUntil5PM = target.getTime() - now.getTime();
+      
+      if (msUntil5PM > 0) {
+        const timeout = setTimeout(() => {
+          const todayStr = new Date().toISOString().split('T')[0];
+          const todaySessions = sessions.filter(s => s.date === todayStr);
+          
+          const summary = {
+            totalSessions: todaySessions.length,
+            present: todaySessions.filter(s => s.teacherStatus === 'PRESENT').length,
+            permission: todaySessions.filter(s => ['PERMISSION', 'SICK'].includes(s.teacherStatus)).length,
+            absent: todaySessions.filter(s => s.teacherStatus === 'ABSENT').length
+          };
+          
+          sendDailySummary(currentUser.id, summary);
+        }, msUntil5PM);
+        
+        return () => clearTimeout(timeout);
+      }
+    }
+  }, [currentUser, sessions]);
+
   const saveData = async (collectionName: string, id: string, data: any) => {
     if (db) {
         try {
@@ -151,10 +210,24 @@ const App: React.FC = () => {
   const handleLogout = () => {
     if (currentUser && db) remove(ref(db, `active_users/${currentUser.id}`)); 
     setCurrentUser(null); 
-    setActiveTab('checkin'); // ← TAMBAHKAN INI
-    setSelectedSubject(null); // ← TAMBAHKAN INI
+    setActiveTab('checkin');
+    setSelectedSubject(null);
     localStorage.removeItem('geoattend_user');
-    showToast("Berhasil keluar", "info"); // ← TAMBAHKAN INI
+    showToast("Berhasil keluar", "info");
+  };
+
+  const handlePermissionRequest = async (subject: Subject, session: ClassSession) => {
+    await saveData('sessions', session.id, session);
+    
+    const adminIds = teachers.filter(t => t.role === 'admin').map(t => t.id);
+    if (adminIds.length > 0) {
+      await notifyAdminNewPermission(
+        adminIds,
+        currentUser?.name || 'Guru',
+        subject.name,
+        subject.className
+      );
+    }
   };
 
   const renderContent = () => {
@@ -181,7 +254,7 @@ const App: React.FC = () => {
                  }
              }} onFinishSession={(sess) => saveData('sessions', sess.id, { ...sess, status: 'COMPLETED' })} onBack={() => setSelectedSubject(null)} showToast={showToast} semester={appConfig.semester} schoolYear={appConfig.schoolYear} />;
           }
-          return <ActiveSessionList subjects={subjects.filter(s => s.day === getIndonesianDay(new Date()))} sessions={sessions} user={currentUser} teachers={teachers} students={students} activeUsers={activeUsers} onSelectSubject={setSelectedSubject} showToast={showToast} semester={appConfig.semester} schoolYear={appConfig.schoolYear} onPermissionRequest={(sub, sess) => saveData('sessions', sess.id, sess)} />;
+          return <ActiveSessionList subjects={subjects.filter(s => s.day === getIndonesianDay(new Date()))} sessions={sessions} user={currentUser} teachers={teachers} students={students} activeUsers={activeUsers} onSelectSubject={setSelectedSubject} showToast={showToast} semester={appConfig.semester} schoolYear={appConfig.schoolYear} onPermissionRequest={handlePermissionRequest} />;
       }
       
       if (activeTab === 'teacher_history') return <TeacherHistory teacher={currentUser as any} subjects={subjects} sessions={sessions} />;
@@ -249,12 +322,11 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-300 flex flex-col md:flex-row">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
-      {/* DESKTOP SIDEBAR - Hidden on Mobile */}
       {currentUser.role === 'admin' && (
         <aside className="hidden md:flex w-72 h-screen sticky top-0 bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 flex-col py-8 px-6 z-50">
            <div className="flex items-center gap-4 mb-10 px-2">
               <div className="w-10 h-10 bg-green-50 dark:bg-green-900/20 rounded-xl flex items-center justify-center p-1.5 border border-green-100 dark:border-green-800">
-                  <img src="/logo.png" className="w-full h-full object-contain" />
+                  <img src="/logo.png" className="w-full h-full object-contain" alt="Logo" />
               </div>
               <h1 className="text-sm font-black text-gray-800 dark:text-white uppercase tracking-tighter leading-none">SiAbsen<br/>Al-Barkah</h1>
            </div>
@@ -283,7 +355,7 @@ const App: React.FC = () => {
 
            <div className="mt-auto p-4 bg-gray-50 dark:bg-gray-800/50 rounded-[28px] border border-gray-100 dark:border-gray-800 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl overflow-hidden shadow-sm bg-white shrink-0">
-                  {currentUser.photoUrl ? <img src={currentUser.photoUrl} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center font-black text-blue-600">{currentUser.name.charAt(0)}</div>}
+                  {currentUser.photoUrl ? <img src={currentUser.photoUrl} className="w-full h-full object-cover" alt={currentUser.name} /> : <div className="w-full h-full flex items-center justify-center font-black text-blue-600">{currentUser.name.charAt(0)}</div>}
               </div>
               <div className="overflow-hidden">
                 <p className="text-[11px] font-black text-gray-800 dark:text-white truncate uppercase">{currentUser.name}</p>
@@ -293,16 +365,35 @@ const App: React.FC = () => {
         </aside>
       )}
 
-      {/* MAIN WRAPPER */}
       <div className="flex-1 flex flex-col w-full">
-        <Navbar user={currentUser} appConfig={appConfig} onUpdateConfig={handleUpdateConfig} onLogout={handleLogout} onEditProfile={() => setIsProfileModalOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} />
+        <Navbar 
+          user={currentUser} 
+          appConfig={appConfig} 
+          onUpdateConfig={handleUpdateConfig} 
+          onLogout={handleLogout} 
+          onEditProfile={() => setIsProfileModalOpen(true)} 
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          isDarkMode={isDarkMode}
+          onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+          notificationBell={<NotificationBell user={currentUser} />}
+        />
         
         <main className={`flex-1 w-full mx-auto px-4 pt-6 pb-28 md:pb-10 overflow-x-hidden ${currentUser.role === 'admin' ? 'max-w-6xl' : 'max-w-md'}`}>
           {renderContent()}
         </main>
       </div>
 
-      {/* MODALS RENDERED AT ROOT */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 z-50 px-2 py-3">
+        <div className="flex items-center justify-around">
+          {navItems.map(item => (
+            <button key={item.tab} onClick={() => setActiveTab(item.tab as any)} className={`flex flex-col items-center gap-1 px-4 py-2 rounded-2xl transition-all ${activeTab === item.tab || (item.tab === 'data_menu' && ['students','teachers','admin','subjects'].includes(activeTab)) ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg>
+              <span className="text-[9px] font-black uppercase tracking-wider">{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+
       {isProfileModalOpen && <EditProfileModal user={currentUser} onSave={(u) => { setCurrentUser(u); localStorage.setItem('geoattend_user', JSON.stringify(u)); setIsProfileModalOpen(false); showToast("Profil diperbarui", "success"); }} onCancel={() => setIsProfileModalOpen(false)} />}
       
       {isSettingsOpen && (
@@ -319,39 +410,24 @@ const App: React.FC = () => {
                       </div>
                       <div>
                           <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Semester Aktif</label>
-                          <select value={appConfig.semester} onChange={(e) => handleUpdateConfig({...appConfig, semester: e.target.value as any})} className="w-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-2xl px-5 py-4 text-sm font-bold outline-none appearance-none dark:text-white shadow-inner">
+                          <select value={appConfig.semester} onChange={(e) => handleUpdateConfig({...appConfig, semester: e.target.value as any})} className="w-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:ring-1 focus:ring-green-500 dark:text-white">
                               <option value="Ganjil">Semester Ganjil</option>
                               <option value="Genap">Semester Genap</option>
                           </select>
                       </div>
-                      <div className="flex items-center justify-between p-5 bg-gray-50 dark:bg-gray-900 rounded-[24px] border border-gray-100 dark:border-gray-700">
-                           <div>
-                              <p className="text-[10px] font-black text-gray-700 dark:text-white uppercase tracking-widest leading-none">Aktivasi Absensi</p>
-                              <p className="text-[9px] text-gray-400 font-black uppercase mt-1">{appConfig.isSystemActive ? "Sistem Terbuka" : "Sistem Tertutup"}</p>
-                           </div>
-                           <button onClick={() => handleUpdateConfig({...appConfig, isSystemActive: !appConfig.isSystemActive})} className={`w-12 h-7 rounded-full p-1 flex transition-colors shadow-inner ${appConfig.isSystemActive ? 'bg-green-600' : 'bg-red-500'}`}>
-                              <div className={`bg-white w-5 h-5 rounded-full shadow transition-transform ${appConfig.isSystemActive ? 'translate-x-5' : ''}`}></div>
-                           </button>
+                      <div>
+                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Status Sistem</label>
+                          <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900 rounded-2xl px-5 py-4 border border-gray-200 dark:border-gray-700">
+                              <button onClick={() => handleUpdateConfig({...appConfig, isSystemActive: !appConfig.isSystemActive})} className={`relative w-14 h-7 rounded-full transition-colors ${appConfig.isSystemActive ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                                  <span className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${appConfig.isSystemActive ? 'translate-x-7' : 'translate-x-0'}`}></span>
+                              </button>
+                              <span className="text-sm font-bold text-gray-700 dark:text-gray-200">{appConfig.isSystemActive ? 'Aktif' : 'Nonaktif'}</span>
+                          </div>
                       </div>
-                      <button onClick={() => setIsSettingsOpen(false)} className="w-full bg-gray-800 dark:bg-white text-white dark:text-black font-black py-5 rounded-2xl shadow-xl transition-all active:scale-95 uppercase text-[10px] tracking-widest">Selesai</button>
                   </div>
               </div>
           </div>
       )}
-
-      {/* MOBILE BOTTOM NAV - Hidden on Desktop */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-100 dark:border-gray-800 px-6 py-4 pb-safe z-40">
-          <div className={`max-w-md mx-auto grid ${navItems.length === 3 ? 'grid-cols-3' : 'grid-cols-2'} gap-4`}>
-              {navItems.map(item => (
-                  <button key={item.tab} onClick={() => setActiveTab(item.tab as any)} className={`flex flex-col items-center justify-center py-2 px-2 rounded-2xl transition-all ${activeTab === item.tab || (item.tab === 'data_menu' && ['students','teachers','admin','subjects'].includes(activeTab)) ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'text-gray-400'}`}>
-                      <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 mb-1 ${activeTab === item.tab ? 'scale-110' : 'scale-100'} transition-transform`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={activeTab === item.tab ? 2.5 : 2} d={item.icon} />
-                      </svg>
-                      <span className="text-[9px] font-black uppercase tracking-[0.15em]">{item.label}</span>
-                  </button>
-              ))}
-          </div>
-      </nav>
     </div>
   );
 };
